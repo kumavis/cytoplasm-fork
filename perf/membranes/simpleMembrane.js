@@ -21,7 +21,7 @@ const proxyToRaw = new WeakMap()
 
 export default () => ({
   wrap,
-  unwrap,
+  unwrap
 })
 
 function wrap (raw) {

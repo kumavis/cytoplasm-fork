@@ -13,14 +13,16 @@
   },
   "scripts": {
     "test": "node test/index.js | tap-spec",
-    "performance": "node perf/index.js",
+    "performance": "node perf/run.js",
     "build": "npm run build:esm && npm run build:cjs",
     "build:esm": "esbuild src/index.js --bundle --format=esm --outfile=dist/index.js --external:../lib/*",
     "build:cjs": "esbuild src/index.js --bundle --format=cjs --outfile=dist/index.cjs --external:../lib/* --target=node14 --banner:js='\"use strict\";'",
     "lint": "npm run lint:standard && npm run lint:deps",
     "lint:standard": "standard src/**/*.js",
     "lint:fix": "standard src/**/*.js --fix",
-    "lint:deps": "depcheck --ignore-dirs=dist --ignores='tap-spec'"
+    "lint:deps": "depcheck --ignore-dirs=dist --ignores='tap-spec'",
+    "performance:quick": "node perf/run.js --quick --only cytoplasm",
+    "performance:report": "node perf/report.js"
   },
   "devDependencies": {
     "depcheck": "^1.4.7",

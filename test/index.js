@@ -6,9 +6,13 @@ import * as srcExports from '../src/index.js'
 import * as distExports from '../dist/index.js'
 import createReadOnlyDistortion from '../src/distortions/readOnly.js'
 import createAlwaysThrowDistortion from '../src/distortions/alwaysThrow.js'
+import runReachabilityTests from './reachability/index.js'
 
 runTests(testWithLabelPrefix('src'), srcExports)
 runTests(testWithLabelPrefix('dist'), distExports)
+
+runReachabilityTests(testWithLabelPrefix('src'), srcExports)
+runReachabilityTests(testWithLabelPrefix('dist'), distExports)
 
 function testWithLabelPrefix (prefix) {
   return (label, testFn) => test(`${prefix}/${label}`, testFn)

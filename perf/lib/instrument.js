@@ -1,3 +1,8 @@
+/* eslint-disable no-extend-native */
+// Patching WeakMap.prototype and Set.prototype is the point of this file: the
+// counters have to sit under the implementation under test, and this module is
+// only ever loaded by a throwaway benchmark process.
+
 // Deterministic counters, for the paths where timing is useless.
 //
 // wrap-cold and construct are dominated by allocation, so their sample

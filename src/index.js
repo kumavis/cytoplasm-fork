@@ -324,12 +324,23 @@ class MembraneProxyHandler {
   }
 
   // origin graph -> out graph
+  //
+  // The primitive test is the same one bridge() applies first, repeated here so
+  // that the common case - a trap result or argument that is a string, number,
+  // boolean or undefined - does not pay for the call at all. bridge() keeps its
+  // own copy, so no caller can regress by skipping this one.
   toOut (value) {
+    if (value === null) return value
+    const type = typeof value
+    if (type !== 'object' && type !== 'function') return value
     return this.membrane.bridge(value, this.originGraph, this.outGraph)
   }
 
   // out graph -> origin graph
   toOrigin (value) {
+    if (value === null) return value
+    const type = typeof value
+    if (type !== 'object' && type !== 'function') return value
     return this.membrane.bridge(value, this.outGraph, this.originGraph)
   }
 
@@ -501,12 +512,39 @@ class MembraneProxyHandler {
     return rawArgs
   }
 
+  // A descriptor leaving the origin graph is always handed straight to the
+  // engine, which runs ToPropertyDescriptor and then CompletePropertyDescriptor
+  // over it - so a missing field and a field present as undefined mean the same
+  // thing, and the two canonical shapes can be emitted as whole object
+  // literals. That gives every descriptor the membrane produces one hidden
+  // class instead of a per-shape transition chain.
   descriptorToOut (rawDesc) {
     if (rawDesc === null || (typeof rawDesc !== 'object' && typeof rawDesc !== 'function')) {
       // undefined for an absent property, or something a distortion returned
       // that the engine is about to reject on our behalf
       return this.toOut(rawDesc)
     }
+    const isAccessor = 'get' in rawDesc || 'set' in rawDesc
+    if (!isAccessor) {
+      if ('value' in rawDesc) {
+        return {
+          value: this.toOut(rawDesc.value),
+          writable: this.toOut(rawDesc.writable),
+          enumerable: this.toOut(rawDesc.enumerable),
+          configurable: this.toOut(rawDesc.configurable)
+        }
+      }
+    } else if (!('value' in rawDesc) && !('writable' in rawDesc)) {
+      return {
+        get: this.toOut(rawDesc.get),
+        set: this.toOut(rawDesc.set),
+        enumerable: this.toOut(rawDesc.enumerable),
+        configurable: this.toOut(rawDesc.configurable)
+      }
+    }
+    // Neither canonical shape - including the deliberately invalid mixtures a
+    // distortion may produce, which the engine is responsible for rejecting.
+    // Keep field presence exactly as it came.
     const propDesc = {}
     if ('value' in rawDesc) propDesc.value = this.toOut(rawDesc.value)
     if ('get' in rawDesc) propDesc.get = this.toOut(rawDesc.get)

@@ -33,17 +33,22 @@ var MembraneSpace = class {
     this.handlerForRef = /* @__PURE__ */ new WeakMap();
     this.label = label;
     this.createHandler = createHandler || (() => Reflect);
+    this.hasCustomCreateHandler = Boolean(createHandler);
     this.passthroughFilter = passthroughFilter || (() => false);
     this.hasPassthroughFilter = Boolean(passthroughFilter);
+    this.createHandlerOptions = {
+      setHandlerForRef: (ref, newHandler) => this.handlerForRef.set(ref, newHandler)
+    };
   }
   getHandlerForRef(rawRef) {
     const existing = this.handlerForRef.get(rawRef);
     if (existing !== void 0) {
       return existing;
     }
-    const handler = this.createHandler({
-      setHandlerForRef: (ref, newHandler) => this.handlerForRef.set(ref, newHandler)
-    });
+    if (!this.hasCustomCreateHandler) {
+      return Reflect;
+    }
+    const handler = this.createHandler(this.createHandlerOptions);
     this.handlerForRef.set(rawRef, handler);
     return handler;
   }

@@ -11,20 +11,30 @@ export class MembraneSpace {
     this.handlerForRef = new WeakMap()
     this.label = label
     this.createHandler = createHandler || (() => Reflect)
+    this.hasCustomCreateHandler = Boolean(createHandler)
     this.passthroughFilter = passthroughFilter || (() => false)
     // most spaces have no filter, and bridge() runs on every trap argument and
     // every trap result, so it is worth not calling a function to learn "no"
     this.hasPassthroughFilter = Boolean(passthroughFilter)
+    // built once per space rather than once per wrapped ref
+    this.createHandlerOptions = {
+      setHandlerForRef: (ref, newHandler) => this.handlerForRef.set(ref, newHandler)
+    }
   }
 
   getHandlerForRef (rawRef) {
+    // this read stays unconditional: user code may seed handlerForRef for a
+    // specific ref on a space that has no createHandler of its own
     const existing = this.handlerForRef.get(rawRef)
     if (existing !== undefined) {
       return existing
     }
-    const handler = this.createHandler({
-      setHandlerForRef: (ref, newHandler) => this.handlerForRef.set(ref, newHandler)
-    })
+    if (!this.hasCustomCreateHandler) {
+      // the default distortion is Reflect itself, so there is nothing per-ref
+      // to build and nothing worth caching
+      return Reflect
+    }
+    const handler = this.createHandler(this.createHandlerOptions)
     this.handlerForRef.set(rawRef, handler)
     return handler
   }

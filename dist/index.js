@@ -73,7 +73,7 @@ var Membrane = class {
       return rawRef;
     }
     if (outGraph.alwaysUnwrap) {
-      const isRawArgumentsArray = inRef === rawRef && Array.isArray(rawRef);
+      const isRawArgumentsArray = inRef === rawRef && isArray(rawRef);
       if (isRawArgumentsArray) {
         rawRef = rawRef.map((childRef) => this.bridge(childRef, inGraph, outGraph));
       }
@@ -102,52 +102,9 @@ var Membrane = class {
   // ProxyInvariantHandler calls next() <-- needs to have final say
   //   MembraneHandler calls next() <-- needs to see distortion result
   //     LocalWritesHandler sets behavior
-  // currently creating handler per-object
-  // perf: create only once?
-  //   better to create one each time with rawRef bound?
-  //   or find a way to map target to rawRef
-  createMembraneProxyHandler(prevProxyHandler, rawRef, originGraph, outGraph) {
-    const proxyHandler = {
-      getPrototypeOf: this.createHandlerFn("getPrototypeOf", prevProxyHandler.getPrototypeOf, rawRef, originGraph, outGraph),
-      setPrototypeOf: this.createHandlerFn("setPrototypeOf", prevProxyHandler.setPrototypeOf, rawRef, originGraph, outGraph),
-      isExtensible: this.createHandlerFn("isExtensible", prevProxyHandler.isExtensible, rawRef, originGraph, outGraph),
-      preventExtensions: this.createHandlerFn("preventExtensions", prevProxyHandler.preventExtensions, rawRef, originGraph, outGraph),
-      getOwnPropertyDescriptor: this.createHandlerFn("getOwnPropertyDescriptor", prevProxyHandler.getOwnPropertyDescriptor, rawRef, originGraph, outGraph),
-      defineProperty: this.createHandlerFn("defineProperty", prevProxyHandler.defineProperty, rawRef, originGraph, outGraph),
-      has: this.createHandlerFn("has", prevProxyHandler.has, rawRef, originGraph, outGraph),
-      get: this.createHandlerFn("get", prevProxyHandler.get, rawRef, originGraph, outGraph),
-      set: this.createHandlerFn("set", prevProxyHandler.set, rawRef, originGraph, outGraph),
-      deleteProperty: this.createHandlerFn("deleteProperty", prevProxyHandler.deleteProperty, rawRef, originGraph, outGraph),
-      ownKeys: this.createHandlerFn("ownKeys", prevProxyHandler.ownKeys, rawRef, originGraph, outGraph),
-      apply: this.createHandlerFn("apply", prevProxyHandler.apply, rawRef, originGraph, outGraph),
-      construct: this.createHandlerFn("construct", prevProxyHandler.construct, rawRef, originGraph, outGraph)
-    };
-    return proxyHandler;
-  }
-  createHandlerFn(action, reflectFn, rawRef, originGraph, outGraph) {
-    const bridge = this.bridge.bind(this);
-    if (this.debugMode) {
-      return (_, ...outArgs) => {
-        const originArgs = outArgs.map((arg) => bridge(arg, outGraph, originGraph));
-        let value = reflectFn(rawRef, ...originArgs);
-        return bridge(value, originGraph, outGraph);
-      };
-    }
-    return (_, ...outArgs) => {
-      const originArgs = outArgs.map((arg) => bridge(arg, outGraph, originGraph));
-      let value, originErr;
-      try {
-        value = reflectFn(rawRef, ...originArgs);
-      } catch (err) {
-        originErr = err;
-      }
-      if (originErr !== void 0) {
-        const outErr = bridge(originErr, originGraph, outGraph);
-        throw outErr;
-      } else {
-        return bridge(value, originGraph, outGraph);
-      }
-    };
+  // both layers live in MembraneProxyHandler now, one instance per wrapped ref
+  createMembraneProxyHandler(distortion, rawRef, originGraph, outGraph) {
+    return new MembraneProxyHandler(this, distortion, rawRef, originGraph, outGraph);
   }
   // some values can/should not be membrane wrapped
   // (bridge() inlines this decision; this stays as the readable statement of it)
@@ -199,10 +156,11 @@ var Membrane = class {
     return `${valueLabel}(${originLabel})`;
   }
 };
-function createFlexibleProxy(realTarget, realHandler) {
+function createFlexibleProxy(realTarget, membraneProxyHandler) {
   const flexibleTarget = getProxyTargetForValue(realTarget);
-  const flexibleHandler = respectProxyInvariants(realHandler);
-  return new Proxy(flexibleTarget, flexibleHandler);
+  const proxy = new Proxy(flexibleTarget, membraneProxyHandler);
+  membraneProxyHandler.proxy = proxy;
+  return proxy;
 }
 function getProxyTargetForValue(value) {
   if (typeof value === "function") {
@@ -214,44 +172,171 @@ function getProxyTargetForValue(value) {
       };
     }
   } else {
-    if (Array.isArray(value)) {
+    if (isArray(value)) {
       return [];
     } else {
       return {};
     }
   }
 }
-function respectProxyInvariants(rawProxyHandler) {
-  const handlerWithDefaults = Object.assign({}, Reflect, rawProxyHandler);
-  const respectfulProxyHandler = Object.assign({}, handlerWithDefaults);
-  respectfulProxyHandler.getOwnPropertyDescriptor = (fakeTarget, key) => {
-    const propDesc = handlerWithDefaults.getOwnPropertyDescriptor(fakeTarget, key);
-    if (propDesc && !propDesc.configurable) {
-      Reflect.defineProperty(fakeTarget, key, propDesc);
+var MembraneProxyHandler = class {
+  constructor(membrane, distortion, rawRef, originGraph, outGraph) {
+    this.membrane = membrane;
+    this.distortion = distortion;
+    this.rawRef = rawRef;
+    this.originGraph = originGraph;
+    this.outGraph = outGraph;
+    this.proxy = void 0;
+  }
+  // origin graph -> out graph
+  toOut(value) {
+    return this.membrane.bridge(value, this.originGraph, this.outGraph);
+  }
+  // out graph -> origin graph
+  toOrigin(value) {
+    return this.membrane.bridge(value, this.outGraph, this.originGraph);
+  }
+  // A receiver that is our own proxy always unwraps to rawRef, so skip the two
+  // WeakMap lookups bridge() would spend proving it.
+  receiverToOrigin(receiver) {
+    if (receiver === this.proxy) {
+      return this.rawRef;
     }
-    return propDesc;
-  };
-  respectfulProxyHandler.preventExtensions = (fakeTarget) => {
-    const didAllow = handlerWithDefaults.preventExtensions(fakeTarget);
-    if (didAllow === true) {
-      const propDescs = handlerWithDefaults.ownKeys(fakeTarget).map((prop) => {
-        const propDesc = handlerWithDefaults.getOwnPropertyDescriptor(fakeTarget, prop);
-        Reflect.defineProperty(fakeTarget, prop, propDesc);
-      });
-      Reflect.setPrototypeOf(fakeTarget, handlerWithDefaults.getPrototypeOf(fakeTarget));
-      Reflect.preventExtensions(fakeTarget);
+    return this.membrane.bridge(receiver, this.outGraph, this.originGraph);
+  }
+  // errors raised in the origin graph must not cross the boundary raw
+  rethrow(err) {
+    if (this.membrane.debugMode) {
+      throw err;
     }
-    return didAllow;
-  };
-  respectfulProxyHandler.defineProperty = (fakeTarget, prop, propDesc) => {
-    const didAllow = handlerWithDefaults.defineProperty(fakeTarget, prop, propDesc);
-    if (didAllow && !propDesc.configurable) {
-      Reflect.defineProperty(fakeTarget, prop, propDesc);
+    throw this.membrane.bridge(err, this.originGraph, this.outGraph);
+  }
+  //
+  // traps
+  //
+  getPrototypeOf(fakeTarget) {
+    try {
+      return this.toOut(this.distortion.getPrototypeOf(this.rawRef));
+    } catch (err) {
+      this.rethrow(err);
     }
-    return didAllow;
-  };
-  return respectfulProxyHandler;
-}
+  }
+  setPrototypeOf(fakeTarget, proto) {
+    try {
+      return this.distortion.setPrototypeOf(this.rawRef, this.toOrigin(proto));
+    } catch (err) {
+      this.rethrow(err);
+    }
+  }
+  isExtensible(fakeTarget) {
+    try {
+      return this.distortion.isExtensible(this.rawRef);
+    } catch (err) {
+      this.rethrow(err);
+    }
+  }
+  preventExtensions(fakeTarget) {
+    try {
+      const didAllow = this.distortion.preventExtensions(this.rawRef);
+      if (didAllow === true) {
+        const keys = this.bridgedOwnKeys();
+        for (let i = 0; i < keys.length; i++) {
+          const key = keys[i];
+          const propDesc = this.bridgedOwnPropertyDescriptor(key);
+          if (propDesc !== void 0) {
+            Reflect.defineProperty(fakeTarget, key, propDesc);
+          }
+        }
+        Reflect.setPrototypeOf(fakeTarget, this.toOut(this.distortion.getPrototypeOf(this.rawRef)));
+        Reflect.preventExtensions(fakeTarget);
+      }
+      return didAllow;
+    } catch (err) {
+      this.rethrow(err);
+    }
+  }
+  getOwnPropertyDescriptor(fakeTarget, key) {
+    try {
+      const propDesc = this.bridgedOwnPropertyDescriptor(key);
+      if (propDesc && !propDesc.configurable) {
+        Reflect.defineProperty(fakeTarget, key, propDesc);
+      }
+      return propDesc;
+    } catch (err) {
+      this.rethrow(err);
+    }
+  }
+  defineProperty(fakeTarget, key, propDesc) {
+    try {
+      const didAllow = this.distortion.defineProperty(this.rawRef, key, this.toOrigin(propDesc));
+      if (didAllow && !propDesc.configurable) {
+        Reflect.defineProperty(fakeTarget, key, propDesc);
+      }
+      return didAllow;
+    } catch (err) {
+      this.rethrow(err);
+    }
+  }
+  has(fakeTarget, key) {
+    try {
+      return this.distortion.has(this.rawRef, key);
+    } catch (err) {
+      this.rethrow(err);
+    }
+  }
+  get(fakeTarget, key, receiver) {
+    try {
+      return this.toOut(this.distortion.get(this.rawRef, key, this.receiverToOrigin(receiver)));
+    } catch (err) {
+      this.rethrow(err);
+    }
+  }
+  set(fakeTarget, key, value, receiver) {
+    try {
+      return this.distortion.set(this.rawRef, key, this.toOrigin(value), this.receiverToOrigin(receiver));
+    } catch (err) {
+      this.rethrow(err);
+    }
+  }
+  deleteProperty(fakeTarget, key) {
+    try {
+      return this.distortion.deleteProperty(this.rawRef, key);
+    } catch (err) {
+      this.rethrow(err);
+    }
+  }
+  ownKeys(fakeTarget) {
+    try {
+      return this.bridgedOwnKeys();
+    } catch (err) {
+      this.rethrow(err);
+    }
+  }
+  apply(fakeTarget, thisArg, args) {
+    try {
+      return this.toOut(this.distortion.apply(this.rawRef, this.toOrigin(thisArg), this.toOrigin(args)));
+    } catch (err) {
+      this.rethrow(err);
+    }
+  }
+  construct(fakeTarget, args, newTarget) {
+    try {
+      return this.toOut(this.distortion.construct(this.rawRef, this.toOrigin(args), this.receiverToOrigin(newTarget)));
+    } catch (err) {
+      this.rethrow(err);
+    }
+  }
+  //
+  // trap internals, called both by the traps and by the invariant enforcement
+  // (which must not re-run the enforcement it is already inside of)
+  //
+  bridgedOwnKeys() {
+    return this.toOut(this.distortion.ownKeys(this.rawRef));
+  }
+  bridgedOwnPropertyDescriptor(key) {
+    return this.toOut(this.distortion.getOwnPropertyDescriptor(this.rawRef, key));
+  }
+};
 export {
   Membrane,
   MembraneSpace

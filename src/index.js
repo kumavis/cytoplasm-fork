@@ -12,11 +12,15 @@ export class MembraneSpace {
     this.label = label
     this.createHandler = createHandler || (() => Reflect)
     this.passthroughFilter = passthroughFilter || (() => false)
+    // most spaces have no filter, and bridge() runs on every trap argument and
+    // every trap result, so it is worth not calling a function to learn "no"
+    this.hasPassthroughFilter = Boolean(passthroughFilter)
   }
 
   getHandlerForRef (rawRef) {
-    if (this.handlerForRef.has(rawRef)) {
-      return this.handlerForRef.get(rawRef)
+    const existing = this.handlerForRef.get(rawRef)
+    if (existing !== undefined) {
+      return existing
     }
     const handler = this.createHandler({
       setHandlerForRef: (ref, newHandler) => this.handlerForRef.set(ref, newHandler)
@@ -30,6 +34,12 @@ export class Membrane {
   constructor ({ debugMode, primordials } = {}) {
     this.debugMode = debugMode
     this.primordials = primordials || Object.values(getIntrinsics())
+    // The primordial list is ~107 entries and used to be searched with
+    // Array#includes on every bridge, which is a linear scan costing ~39ns per
+    // miss - and a miss is the common case, since user objects are never
+    // primordials. A Set makes it a hash lookup. Snapshotted at construction:
+    // mutating `primordials` afterwards has no effect.
+    this.primordialSet = new Set(this.primordials)
     this.bridgedToRaw = new WeakMap()
     this.rawToOrigin = new WeakMap()
   }
@@ -40,6 +50,21 @@ export class Membrane {
 
   // if rawObj is not part of inGraph, should we explode?
   bridge (inRef, inGraph, outGraph) {
+    //
+    // skip if should be passed directly (danger)
+    //
+
+    // Non-objects are never wrapped. This is `shouldSkipBridge` inlined and
+    // reordered: `typeof` rejects every primitive in a single test, where the
+    // old `Array.isArray` gate cost 4ns on a primitive and 15ns on a proxy
+    // (isArray pierces proxies down in the runtime).
+    if (inRef === null) {
+      return inRef
+    }
+    const type = typeof inRef
+    if (type !== 'object' && type !== 'function') {
+      return inRef
+    }
 
     // if we've been asked to bridge a ref between the same to spaces, its a no-op
     if (inGraph === outGraph) {
@@ -47,36 +72,33 @@ export class Membrane {
     }
 
     //
-    // skip if should be passed directly (danger)
-    //
-
-    if (this.shouldSkipBridge(inRef)) {
-      // console.log(`membrane.bridge should skip in:${inGraph.label} -> out:${outGraph.label}`)
-      return inRef
-    }
-
-    //
     // unwrap ref and detect "origin" graph
     //
 
-    let rawRef
+    let rawRef = this.bridgedToRaw.get(inRef)
     let originGraph
 
-    if (this.bridgedToRaw.has(inRef)) {
-      // we know this ref
-      rawRef = this.bridgedToRaw.get(inRef)
-      originGraph = this.rawToOrigin.get(rawRef)
-    } else {
+    if (rawRef === undefined) {
+      // Not one of our proxies, so it is either a primordial or a raw ref.
+      // The primordial test lives here, after the identity lookup, because a
+      // ref we have already bridged provably is not a primordial - this keeps
+      // the hot path (re-bridging a known proxy) from paying for the check.
+      if (this.primordialSet.has(inRef)) {
+        return inRef
+      }
       // we've never seen this ref before - must be raw and from inGraph
       rawRef = inRef
       originGraph = inGraph
       // record origin
       // console.log(`assigning to "${inGraph.label}"`, this.debugLabelForValue(rawRef))
       this.rawToOrigin.set(inRef, inGraph)
+    } else {
+      // we know this ref
+      originGraph = this.rawToOrigin.get(rawRef)
     }
 
     // allow graphs to pass through some values unwrapped
-    if (outGraph.passthroughFilter(rawRef)) {
+    if (outGraph.hasPassthroughFilter && outGraph.passthroughFilter(rawRef)) {
       return rawRef
     }
 
@@ -88,7 +110,7 @@ export class Membrane {
     if (outGraph.alwaysUnwrap) {
       // workaround for the arguments array which is an unwrapped array
       // with wrapped elements
-      const isRawArgumentsArray = (inRef === rawRef && Array.isArray(rawRef))
+      const isRawArgumentsArray = (inRef === rawRef && isArray(rawRef))
       if (isRawArgumentsArray) {
         rawRef = rawRef.map(childRef => this.bridge(childRef, inGraph, outGraph))
       }
@@ -101,8 +123,9 @@ export class Membrane {
     }
 
     // if outGraph already has bridged wrapping for rawRef, use it
-    if (outGraph.rawToBridged.has(rawRef)) {
-      return outGraph.rawToBridged.get(rawRef)
+    const cached = outGraph.rawToBridged.get(rawRef)
+    if (cached !== undefined) {
+      return cached
     }
 
     // create new wrapping for rawRef
@@ -184,29 +207,19 @@ export class Membrane {
   }
 
   // some values can/should not be membrane wrapped
+  // (bridge() inlines this decision; this stays as the readable statement of it)
   shouldSkipBridge (value) {
-    // Check for null and undefined
+    // check for null and non-objects, which covers undefined
     if (value === null) {
       return true
     }
-    if (value === undefined) {
-      return true
-    }
-
-    // early exit if the object is an Array instance (common)
-    if (isArray(value) && value !== Array.prototype) {
-      // cant skip bridge
-      return false
-    }
-
-    // check for non-objects
     const valueType = typeof value
     if (valueType !== 'object' && valueType !== 'function') {
       return true
     }
 
     // primordials should not be wrapped
-    if (this.primordials.includes(value)) {
+    if (this.primordialSet.has(value)) {
       return true
     }
 
@@ -277,7 +290,7 @@ function getProxyTargetForValue (value) {
       return () => {}
     }
   } else {
-    if (Array.isArray(value)) {
+    if (isArray(value)) {
       return []
     } else {
       return {}

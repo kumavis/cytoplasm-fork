@@ -21,8 +21,9 @@
     "lint:standard": "standard src/**/*.js",
     "lint:fix": "standard src/**/*.js --fix",
     "lint:deps": "depcheck --ignore-dirs=dist --ignores='tap-spec'",
-    "performance:quick": "node perf/run.js --quick --only cytoplasm",
-    "performance:report": "node perf/report.js"
+    "performance:quick": "node perf/run.js --quick --membranes non-membrane:bare,non-membrane:reflectProxy,test:simpleMembrane,cytoplasm:transparent,cytoplasm:readOnly",
+    "performance:report": "node perf/report.js",
+    "performance:track": "node perf/run.js --quick --trials 3 --startupTrials 7 --membranes non-membrane:bare,non-membrane:reflectProxy,test:simpleMembrane,cytoplasm:transparent,cytoplasm:readOnly"
   },
   "devDependencies": {
     "depcheck": "^1.4.7",

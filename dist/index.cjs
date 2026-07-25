@@ -47,10 +47,12 @@ var MembraneSpace = class {
     this.label = label;
     this.createHandler = createHandler || (() => Reflect);
     this.passthroughFilter = passthroughFilter || (() => false);
+    this.hasPassthroughFilter = Boolean(passthroughFilter);
   }
   getHandlerForRef(rawRef) {
-    if (this.handlerForRef.has(rawRef)) {
-      return this.handlerForRef.get(rawRef);
+    const existing = this.handlerForRef.get(rawRef);
+    if (existing !== void 0) {
+      return existing;
     }
     const handler = this.createHandler({
       setHandlerForRef: (ref, newHandler) => this.handlerForRef.set(ref, newHandler)
@@ -63,6 +65,7 @@ var Membrane = class {
   constructor({ debugMode, primordials } = {}) {
     this.debugMode = debugMode;
     this.primordials = primordials || Object.values(getIntrinsics());
+    this.primordialSet = new Set(this.primordials);
     this.bridgedToRaw = /* @__PURE__ */ new WeakMap();
     this.rawToOrigin = /* @__PURE__ */ new WeakMap();
   }
@@ -71,23 +74,29 @@ var Membrane = class {
   }
   // if rawObj is not part of inGraph, should we explode?
   bridge(inRef, inGraph, outGraph) {
+    if (inRef === null) {
+      return inRef;
+    }
+    const type = typeof inRef;
+    if (type !== "object" && type !== "function") {
+      return inRef;
+    }
     if (inGraph === outGraph) {
       return inRef;
     }
-    if (this.shouldSkipBridge(inRef)) {
-      return inRef;
-    }
-    let rawRef;
+    let rawRef = this.bridgedToRaw.get(inRef);
     let originGraph;
-    if (this.bridgedToRaw.has(inRef)) {
-      rawRef = this.bridgedToRaw.get(inRef);
-      originGraph = this.rawToOrigin.get(rawRef);
-    } else {
+    if (rawRef === void 0) {
+      if (this.primordialSet.has(inRef)) {
+        return inRef;
+      }
       rawRef = inRef;
       originGraph = inGraph;
       this.rawToOrigin.set(inRef, inGraph);
+    } else {
+      originGraph = this.rawToOrigin.get(rawRef);
     }
-    if (outGraph.passthroughFilter(rawRef)) {
+    if (outGraph.hasPassthroughFilter && outGraph.passthroughFilter(rawRef)) {
       return rawRef;
     }
     if (outGraph.alwaysUnwrap) {
@@ -100,8 +109,9 @@ var Membrane = class {
     if (originGraph === outGraph) {
       return rawRef;
     }
-    if (outGraph.rawToBridged.has(rawRef)) {
-      return outGraph.rawToBridged.get(rawRef);
+    const cached = outGraph.rawToBridged.get(rawRef);
+    if (cached !== void 0) {
+      return cached;
     }
     const distortionHandler = originGraph.getHandlerForRef(rawRef);
     const membraneProxyHandler = this.createMembraneProxyHandler(
@@ -167,21 +177,16 @@ var Membrane = class {
     };
   }
   // some values can/should not be membrane wrapped
+  // (bridge() inlines this decision; this stays as the readable statement of it)
   shouldSkipBridge(value) {
     if (value === null) {
       return true;
-    }
-    if (value === void 0) {
-      return true;
-    }
-    if (isArray(value) && value !== Array.prototype) {
-      return false;
     }
     const valueType = typeof value;
     if (valueType !== "object" && valueType !== "function") {
       return true;
     }
-    if (this.primordials.includes(value)) {
+    if (this.primordialSet.has(value)) {
       return true;
     }
     return false;

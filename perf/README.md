@@ -89,3 +89,28 @@ two handler shapes make the engine's trap lookup on the handler polymorphic, so
 the specialization taxes the distortion it does not specialize. Read-only is the
 baseline that matters, so seventy lines of duplicated trap bodies buying noise
 on one row and a possible regression on the other is not a trade worth making.
+
+## A known bad data point
+
+In `001-00-baseline.json` the `get-own-property-descriptor` row for
+`cytoplasm:transparent` reads 176.8 ns/op, with tight trials
+(179.1 / 175.4 / 176.8). It is wrong. That is faster than a bare
+`new Proxy(target, Reflect)` manages the same operation (289.7 ns), on an
+implementation that was allocating a throwaway proxy and thirty-odd objects per
+call - physically impossible.
+
+Re-measured directly against the same commit, checked out into a worktree and
+run through this harness as an extra implementation, it is **6092.9 ns/op**,
+which agrees with the `cytoplasm:readOnly` row in the same file (6389.3) and
+with `002-01-baseline.json` (5938.6, same code, different process).
+
+So the timeseries `get-own-property-descriptor` column for
+`cytoplasm:transparent` shows a bogus regression against run 0. The real change
+is 6093 -> 313 ns, about 19x, which is what the readOnly column shows.
+
+The data point is left in place rather than edited, because the recorded runs
+are a log and not a story. The lesson is the one the harness is otherwise built
+around: three trials inside one process agreeing with each other says nothing
+about whether the process as a whole landed in a representative state. Cross-run
+disagreement is the signal to distrust, and a number that beats a physical floor
+should be checked before it is celebrated.

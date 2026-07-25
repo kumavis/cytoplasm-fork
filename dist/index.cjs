@@ -53,6 +53,7 @@ var getPrimordialSet = () => {
 
 // src/index.js
 var { isArray } = Array;
+var reflectGet = Reflect.get;
 var MembraneSpace = class {
   constructor({ label, createHandler, dangerouslyAlwaysUnwrap, passthroughFilter }) {
     this.alwaysUnwrap = Boolean(dangerouslyAlwaysUnwrap);
@@ -98,8 +99,7 @@ var Membrane = class {
       this.primordials = getPrimordialValues();
       this.primordialSet = getPrimordialSet();
     }
-    this.bridgedToRaw = /* @__PURE__ */ new WeakMap();
-    this.rawToOrigin = /* @__PURE__ */ new WeakMap();
+    this.refInfo = /* @__PURE__ */ new WeakMap();
   }
   makeMembraneSpace(opts) {
     return new MembraneSpace(opts);
@@ -116,28 +116,28 @@ var Membrane = class {
     if (inGraph === outGraph) {
       return inRef;
     }
-    let rawRef = this.bridgedToRaw.get(inRef);
-    let originGraph;
-    if (rawRef === void 0) {
+    let info = this.refInfo.get(inRef);
+    if (info === void 0) {
       if (this.primordialSet.has(inRef)) {
         return inRef;
       }
-      rawRef = inRef;
-      originGraph = this.rawToOrigin.get(inRef);
-      if (originGraph === void 0) {
-        originGraph = inGraph;
-        this.rawToOrigin.set(inRef, inGraph);
-      }
-    } else {
-      originGraph = this.rawToOrigin.get(rawRef);
+      info = { raw: inRef, origin: inGraph };
+      this.refInfo.set(inRef, info);
     }
+    let rawRef = info.raw;
+    const originGraph = info.origin;
     if (outGraph.hasPassthroughFilter && outGraph.passthroughFilter(rawRef)) {
       return rawRef;
     }
     if (outGraph.alwaysUnwrap) {
       const isRawArgumentsArray = inRef === rawRef && isArray(rawRef);
       if (isRawArgumentsArray) {
-        rawRef = rawRef.map((childRef) => this.bridge(childRef, inGraph, outGraph));
+        const length = rawRef.length;
+        const unwrapped = new Array(length);
+        for (let i = 0; i < length; i++) {
+          unwrapped[i] = this.bridge(rawRef[i], inGraph, outGraph);
+        }
+        return unwrapped;
       }
       return rawRef;
     }
@@ -157,7 +157,7 @@ var Membrane = class {
     );
     const outRef = createFlexibleProxy(rawRef, membraneProxyHandler);
     outGraph.rawToBridged.set(rawRef, outRef);
-    this.bridgedToRaw.set(outRef, rawRef);
+    this.refInfo.set(outRef, info);
     return outRef;
   }
   // handler stack
@@ -184,20 +184,21 @@ var Membrane = class {
     return false;
   }
   getOriginSpace(ref) {
-    const rawRef = this.bridgedToRaw.get(ref) || ref;
-    const originSpace = this.rawToOrigin.get(rawRef);
-    return originSpace;
+    const info = this.refInfo.get(ref);
+    return info === void 0 ? void 0 : info.origin;
   }
   isWrapped(ref) {
-    return this.bridgedToRaw.has(ref);
+    const info = this.refInfo.get(ref);
+    return info !== void 0 && info.raw !== ref;
   }
   // this returns a string representing the passed in value
   // it is used for debugging
   debugLabelForValue(inRef) {
     let rawRef, originLabel;
-    if (this.bridgedToRaw.has(inRef)) {
-      rawRef = this.bridgedToRaw.get(inRef);
-      originLabel = this.rawToOrigin.get(rawRef).label;
+    const info = this.refInfo.get(inRef);
+    if (info !== void 0 && info.raw !== inRef) {
+      rawRef = info.raw;
+      originLabel = info.origin.label;
     } else {
       rawRef = inRef;
       originLabel = "raw";
@@ -359,6 +360,9 @@ var MembraneProxyHandler = class {
   }
   get(fakeTarget, key, receiver) {
     try {
+      if (receiver === this.proxy && this.distortion.get === reflectGet) {
+        return this.toOut(this.rawRef[key]);
+      }
       return this.toOut(this.distortion.get(this.rawRef, key, this.receiverToOrigin(receiver)));
     } catch (err) {
       this.rethrow(err);

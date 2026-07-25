@@ -3,21 +3,48 @@ on: [push, pull_request]
 
 jobs:
   test:
-    name: test
+    name: test (node ${{ matrix.node }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['20', '22']
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ matrix.node }}
           cache: 'yarn'
       - name: Install Dependencies
         run: yarn install --frozen-lockfile
       - name: Test
         run: yarn test
-      - name: Performance Test
-        run: yarn performance
+      # the suite runs against dist/ as well as src/, so a stale dist means half
+      # the assertions are testing the previous implementation
+      - name: Check dist is up to date
+        run: |
+          yarn build
+          git diff --exit-code -- dist
       - name: Lint
         run: yarn lint
+
+  performance:
+    name: performance
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'yarn'
+      - name: Install Dependencies
+        run: yarn install --frozen-lockfile
+      # the full comparison runs every implementation against every suite in its
+      # own process and takes ~10 minutes; the quick preset keeps the cytoplasm
+      # rows plus the controls needed to notice a machine-level change
+      - name: Performance
+        run: yarn performance:quick

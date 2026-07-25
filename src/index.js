@@ -1,6 +1,6 @@
 // theres some things we may need to enforce differently when in and out of strict mode
 // e.g. fn.arguments
-import { getIntrinsics } from './getIntrinsics.js'
+import { getPrimordialValues, getPrimordialSet } from './getIntrinsics.js'
 
 const { isArray } = Array
 
@@ -33,13 +33,18 @@ export class MembraneSpace {
 export class Membrane {
   constructor ({ debugMode, primordials } = {}) {
     this.debugMode = debugMode
-    this.primordials = primordials || Object.values(getIntrinsics())
     // The primordial list is ~107 entries and used to be searched with
     // Array#includes on every bridge, which is a linear scan costing ~39ns per
     // miss - and a miss is the common case, since user objects are never
     // primordials. A Set makes it a hash lookup. Snapshotted at construction:
     // mutating `primordials` afterwards has no effect.
-    this.primordialSet = new Set(this.primordials)
+    if (primordials) {
+      this.primordials = primordials
+      this.primordialSet = new Set(primordials)
+    } else {
+      this.primordials = getPrimordialValues()
+      this.primordialSet = getPrimordialSet()
+    }
     this.bridgedToRaw = new WeakMap()
     this.rawToOrigin = new WeakMap()
   }

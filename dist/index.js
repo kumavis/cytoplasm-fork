@@ -9,6 +9,20 @@ var getIntrinsics = () => {
 ${subErrMsg}`);
   }
 };
+var cachedValues;
+var cachedSet;
+var getPrimordialValues = () => {
+  if (cachedValues === void 0) {
+    cachedValues = Object.values(getIntrinsics());
+  }
+  return cachedValues.slice();
+};
+var getPrimordialSet = () => {
+  if (cachedSet === void 0) {
+    cachedSet = new Set(getPrimordialValues());
+  }
+  return cachedSet;
+};
 
 // src/index.js
 var { isArray } = Array;
@@ -37,8 +51,13 @@ var MembraneSpace = class {
 var Membrane = class {
   constructor({ debugMode, primordials } = {}) {
     this.debugMode = debugMode;
-    this.primordials = primordials || Object.values(getIntrinsics());
-    this.primordialSet = new Set(this.primordials);
+    if (primordials) {
+      this.primordials = primordials;
+      this.primordialSet = new Set(primordials);
+    } else {
+      this.primordials = getPrimordialValues();
+      this.primordialSet = getPrimordialSet();
+    }
     this.bridgedToRaw = /* @__PURE__ */ new WeakMap();
     this.rawToOrigin = /* @__PURE__ */ new WeakMap();
   }

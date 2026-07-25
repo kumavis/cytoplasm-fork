@@ -61,6 +61,8 @@ var MembraneSpace = class {
     this.label = label;
     this.createHandler = createHandler || (() => Reflect);
     this.hasCustomCreateHandler = Boolean(createHandler);
+    this.hasSharedHandler = Boolean(createHandler && createHandler.shareable === true);
+    this.sharedHandler = void 0;
     this.passthroughFilter = passthroughFilter || (() => false);
     this.hasPassthroughFilter = Boolean(passthroughFilter);
     this.createHandlerOptions = {
@@ -74,6 +76,12 @@ var MembraneSpace = class {
     }
     if (!this.hasCustomCreateHandler) {
       return Reflect;
+    }
+    if (this.hasSharedHandler) {
+      if (this.sharedHandler === void 0) {
+        this.sharedHandler = this.createHandler(this.createHandlerOptions);
+      }
+      return this.sharedHandler;
     }
     const handler = this.createHandler(this.createHandlerOptions);
     this.handlerForRef.set(rawRef, handler);

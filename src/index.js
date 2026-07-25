@@ -12,6 +12,12 @@ export class MembraneSpace {
     this.label = label
     this.createHandler = createHandler || (() => Reflect)
     this.hasCustomCreateHandler = Boolean(createHandler)
+    // A distortion factory can declare itself shareable when the handler it
+    // returns keeps no per-ref state - it receives the ref explicitly through
+    // setHandlerForRef and through every trap. Then one handler serves the
+    // whole space instead of one being built per wrapped ref.
+    this.hasSharedHandler = Boolean(createHandler && createHandler.shareable === true)
+    this.sharedHandler = undefined
     this.passthroughFilter = passthroughFilter || (() => false)
     // most spaces have no filter, and bridge() runs on every trap argument and
     // every trap result, so it is worth not calling a function to learn "no"
@@ -33,6 +39,12 @@ export class MembraneSpace {
       // the default distortion is Reflect itself, so there is nothing per-ref
       // to build and nothing worth caching
       return Reflect
+    }
+    if (this.hasSharedHandler) {
+      if (this.sharedHandler === undefined) {
+        this.sharedHandler = this.createHandler(this.createHandlerOptions)
+      }
+      return this.sharedHandler
     }
     const handler = this.createHandler(this.createHandlerOptions)
     this.handlerForRef.set(rawRef, handler)

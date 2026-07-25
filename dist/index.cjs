@@ -266,10 +266,10 @@ var MembraneProxyHandler = class {
     try {
       const didAllow = this.distortion.preventExtensions(this.rawRef);
       if (didAllow === true) {
-        const keys = this.bridgedOwnKeys();
+        const keys = this.copyOwnKeys();
         for (let i = 0; i < keys.length; i++) {
           const key = keys[i];
-          const propDesc = this.bridgedOwnPropertyDescriptor(key);
+          const propDesc = this.descriptorToOut(this.distortion.getOwnPropertyDescriptor(this.rawRef, key));
           if (propDesc !== void 0) {
             Reflect.defineProperty(fakeTarget, key, propDesc);
           }
@@ -284,7 +284,7 @@ var MembraneProxyHandler = class {
   }
   getOwnPropertyDescriptor(fakeTarget, key) {
     try {
-      const propDesc = this.bridgedOwnPropertyDescriptor(key);
+      const propDesc = this.descriptorToOut(this.distortion.getOwnPropertyDescriptor(this.rawRef, key));
       if (propDesc && !propDesc.configurable) {
         Reflect.defineProperty(fakeTarget, key, propDesc);
       }
@@ -295,7 +295,7 @@ var MembraneProxyHandler = class {
   }
   defineProperty(fakeTarget, key, propDesc) {
     try {
-      const didAllow = this.distortion.defineProperty(this.rawRef, key, this.toOrigin(propDesc));
+      const didAllow = this.distortion.defineProperty(this.rawRef, key, this.descriptorToOrigin(propDesc));
       if (didAllow && !propDesc.configurable) {
         Reflect.defineProperty(fakeTarget, key, propDesc);
       }
@@ -334,33 +334,83 @@ var MembraneProxyHandler = class {
   }
   ownKeys(fakeTarget) {
     try {
-      return this.bridgedOwnKeys();
+      return this.copyOwnKeys();
     } catch (err) {
       this.rethrow(err);
     }
   }
   apply(fakeTarget, thisArg, args) {
     try {
-      return this.toOut(this.distortion.apply(this.rawRef, this.toOrigin(thisArg), this.toOrigin(args)));
+      return this.toOut(this.distortion.apply(this.rawRef, this.toOrigin(thisArg), this.argsToOrigin(args)));
     } catch (err) {
       this.rethrow(err);
     }
   }
   construct(fakeTarget, args, newTarget) {
     try {
-      return this.toOut(this.distortion.construct(this.rawRef, this.toOrigin(args), this.receiverToOrigin(newTarget)));
+      return this.toOut(this.distortion.construct(this.rawRef, this.argsToOrigin(args), this.receiverToOrigin(newTarget)));
     } catch (err) {
       this.rethrow(err);
     }
   }
   //
-  // trap internals, called both by the traps and by the invariant enforcement
-  // (which must not re-run the enforcement it is already inside of)
+  // proxy protocol transport
   //
-  bridgedOwnKeys() {
-    return this.toOut(this.distortion.ownKeys(this.rawRef));
+  // The key list, the property descriptors and the argument list are containers
+  // the proxy protocol mints for itself. The engine converts each one back into
+  // an internal record before anything can observe it, so a wrapped reference
+  // could never escape through them - but wrapping them anyway is what made
+  // ownKeys, getOwnPropertyDescriptor, apply and construct so expensive. Each
+  // one used to become a full membrane proxy, freshly built on every single
+  // call because these containers are never the same object twice, and the
+  // engine then read every element back out through that proxy.
+  //
+  // Copying them instead is observationally identical: the same values, bridged
+  // individually, arrive in the same places. Only the fields that can carry a
+  // reference get bridged - and property keys never do, since they are always
+  // strings or symbols.
+  //
+  copyOwnKeys() {
+    const rawKeys = this.distortion.ownKeys(this.rawRef);
+    const length = rawKeys.length;
+    const keys = new Array(length);
+    for (let i = 0; i < length; i++) {
+      keys[i] = rawKeys[i];
+    }
+    return keys;
   }
-  bridgedOwnPropertyDescriptor(key) {
-    return this.toOut(this.distortion.getOwnPropertyDescriptor(this.rawRef, key));
+  argsToOrigin(args) {
+    const length = args.length;
+    const rawArgs = new Array(length);
+    for (let i = 0; i < length; i++) {
+      rawArgs[i] = this.toOrigin(args[i]);
+    }
+    return rawArgs;
+  }
+  descriptorToOut(rawDesc) {
+    if (rawDesc === null || typeof rawDesc !== "object" && typeof rawDesc !== "function") {
+      return this.toOut(rawDesc);
+    }
+    const propDesc = {};
+    if ("value" in rawDesc) propDesc.value = this.toOut(rawDesc.value);
+    if ("get" in rawDesc) propDesc.get = this.toOut(rawDesc.get);
+    if ("set" in rawDesc) propDesc.set = this.toOut(rawDesc.set);
+    if ("writable" in rawDesc) propDesc.writable = this.toOut(rawDesc.writable);
+    if ("enumerable" in rawDesc) propDesc.enumerable = this.toOut(rawDesc.enumerable);
+    if ("configurable" in rawDesc) propDesc.configurable = this.toOut(rawDesc.configurable);
+    return propDesc;
+  }
+  descriptorToOrigin(propDesc) {
+    if (propDesc === null || typeof propDesc !== "object" && typeof propDesc !== "function") {
+      return this.toOrigin(propDesc);
+    }
+    const rawDesc = {};
+    if ("value" in propDesc) rawDesc.value = this.toOrigin(propDesc.value);
+    if ("get" in propDesc) rawDesc.get = this.toOrigin(propDesc.get);
+    if ("set" in propDesc) rawDesc.set = this.toOrigin(propDesc.set);
+    if ("writable" in propDesc) rawDesc.writable = this.toOrigin(propDesc.writable);
+    if ("enumerable" in propDesc) rawDesc.enumerable = this.toOrigin(propDesc.enumerable);
+    if ("configurable" in propDesc) rawDesc.configurable = this.toOrigin(propDesc.configurable);
+    return rawDesc;
   }
 };

@@ -91,12 +91,21 @@ export class Membrane {
       if (this.primordialSet.has(inRef)) {
         return inRef
       }
-      // we've never seen this ref before - must be raw and from inGraph
       rawRef = inRef
-      originGraph = inGraph
-      // record origin
-      // console.log(`assigning to "${inGraph.label}"`, this.debugLabelForValue(rawRef))
-      this.rawToOrigin.set(inRef, inGraph)
+      // Origin is write-once. It used to be re-recorded on every bridge of a
+      // raw ref, so a ref that came back out of a dangerouslyAlwaysUnwrap
+      // space - or that a caller bridged with the wrong inGraph - was
+      // re-attributed to that space, and would then be wrapped with that
+      // space's handler. An object that originated behind a read-only
+      // distortion could re-enter a third space writable.
+      originGraph = this.rawToOrigin.get(inRef)
+      if (originGraph === undefined) {
+        // we've never seen this ref before - must be raw and from inGraph
+        originGraph = inGraph
+        // record origin
+        // console.log(`assigning to "${inGraph.label}"`, this.debugLabelForValue(rawRef))
+        this.rawToOrigin.set(inRef, inGraph)
+      }
     } else {
       // we know this ref
       originGraph = this.rawToOrigin.get(rawRef)

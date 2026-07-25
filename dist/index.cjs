@@ -110,8 +110,11 @@ var Membrane = class {
         return inRef;
       }
       rawRef = inRef;
-      originGraph = inGraph;
-      this.rawToOrigin.set(inRef, inGraph);
+      originGraph = this.rawToOrigin.get(inRef);
+      if (originGraph === void 0) {
+        originGraph = inGraph;
+        this.rawToOrigin.set(inRef, inGraph);
+      }
     } else {
       originGraph = this.rawToOrigin.get(rawRef);
     }

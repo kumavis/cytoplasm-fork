@@ -63,3 +63,29 @@ measuring something else. This matters: `fast-membrane` and
 `observable-membrane` hand functions and classes back **unwrapped**, so
 benchmarking `call` or `construct` against them would be benchmarking a bare
 function call.
+
+## Rejected experiments
+
+Kept here because a measured "no" is worth as much as a measured "yes", and the
+data for each is in `perf/results/`.
+
+**`10-experiment-transparent-specialization`** - a `MembraneProxyHandler`
+subclass for refs whose distortion is `Reflect`, calling `Reflect.get` /
+`Reflect.set` / ... directly so each trap has a constant callee instead of one
+shared with every distortion in the process.
+
+Measured against the same commit without it, 7 trials each:
+
+| suite | transparent with | transparent without | readOnly with | readOnly without |
+|---|---|---|---|---|
+| get | 40.6 | 42.2 | 42.2 | 43.5 |
+| deep-get | 83.3 | 80.9 | 90.0 | 81.7 |
+| array-iter | 232.5 | 242.5 | 235.9 | 237.5 |
+| has | 38.0 | 38.8 | 38.7 | 39.2 |
+
+Every gain is inside the 5% median-absolute-deviation of those suites, and
+read-only `deep-get` moves 10% the wrong way - which is the predicted hazard:
+two handler shapes make the engine's trap lookup on the handler polymorphic, so
+the specialization taxes the distortion it does not specialize. Read-only is the
+baseline that matters, so seventy lines of duplicated trap bodies buying noise
+on one row and a possible regression on the other is not a trade worth making.

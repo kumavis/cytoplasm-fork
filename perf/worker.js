@@ -10,6 +10,8 @@
 import { measure } from './lib/measure.js'
 import { findSuite } from './suites/index.js'
 import { loadMembraneFactory, findMembrane } from './membranes/index.js'
+import { installCounters } from './lib/instrument.js'
+import { createGenerator } from './buildData.js'
 
 function parseArgs (argv) {
   const args = {}
@@ -91,6 +93,85 @@ async function runSuite (membraneName, suiteName, opts) {
   })
 }
 
+// Retained bytes per wrapped reference. Needs --expose-gc.
+async function runMemory (membraneName, size) {
+  if (typeof globalThis.gc !== 'function') {
+    throw new Error('perf worker: --memory needs node --expose-gc')
+  }
+  const factory = await loadMembraneFactory(membraneName)
+  const membrane = factory()
+  const data = createGenerator(12).createFlatData(size)
+  // touch the wrap path once so its code is compiled and its lazy state built
+  membrane.wrap({ warmup: true })
+
+  globalThis.gc()
+  globalThis.gc()
+  const before = process.memoryUsage().heapUsed
+  const wrapped = new Array(size)
+  for (let i = 0; i < size; i++) {
+    wrapped[i] = membrane.wrap(data[i])
+  }
+  globalThis.gc()
+  globalThis.gc()
+  const after = process.memoryUsage().heapUsed
+  // keep everything reachable across the measurement
+  if (wrapped.length !== size) throw new Error('unreachable')
+
+  emit({
+    kind: 'memory',
+    membrane: membraneName,
+    size,
+    // subtract the holder array itself
+    bytesPerWrap: (after - before - size * 8) / size
+  })
+}
+
+// Exact operation counts on an already-warm proxy. These are integers, so any
+// change to them is a real change, unlike the allocation-heavy timings.
+async function runOps (membraneName) {
+  const instrument = installCounters()
+  const factory = await loadMembraneFactory(membraneName)
+  const entry = findMembrane(membraneName)
+  const membrane = factory()
+
+  const gen = createGenerator(13)
+  const target = membrane.wrap(gen.createMethodObj())
+  const fresh = gen.createFlatData(64)
+
+  const operations = {
+    get: () => target.label,
+    has: () => 'label' in target,
+    'own-keys': () => Object.keys(target),
+    'get-own-property-descriptor': () => Object.getOwnPropertyDescriptor(target, 'label')
+  }
+  if (entry.caps.writable) {
+    operations.set = () => { target.id = 1 }
+  }
+  if (entry.caps.functions) {
+    operations['method-call'] = () => target.combine('a', 'b')
+  }
+
+  const counts = {}
+  for (const [name, run] of Object.entries(operations)) {
+    // warm, so lazily-created caches are not attributed to the measured call
+    run()
+    instrument.reset()
+    run()
+    counts[name] = instrument.snapshot()
+  }
+
+  // cold wrap is measured separately: each one must see an unseen object
+  instrument.reset()
+  for (let i = 0; i < fresh.length; i++) membrane.wrap(fresh[i])
+  const wrapSnapshot = instrument.snapshot()
+  counts['wrap-cold'] = {}
+  for (const [key, value] of Object.entries(wrapSnapshot)) {
+    counts['wrap-cold'][key] = value / fresh.length
+  }
+
+  emit({ kind: 'ops', membrane: membraneName, counts })
+}
+
 async function main () {
   const args = parseArgs(process.argv.slice(2))
   const membraneName = args.membrane
@@ -98,6 +179,16 @@ async function main () {
 
   if (args.startup) {
     await runStartup(membraneName)
+    return
+  }
+
+  if (args.memory) {
+    await runMemory(membraneName, args.size ? Number(args.size) : 2000)
+    return
+  }
+
+  if (args.ops) {
+    await runOps(membraneName)
     return
   }
 

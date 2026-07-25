@@ -39,9 +39,9 @@ function parseArgs (argv) {
   return args
 }
 
-function runWorker (workerArgs) {
+function runWorker (workerArgs, nodeArgs = []) {
   return new Promise((resolve) => {
-    const child = spawn(process.execPath, [workerPath, ...workerArgs], {
+    const child = spawn(process.execPath, [...nodeArgs, workerPath, ...workerArgs], {
       stdio: ['ignore', 'pipe', 'pipe']
     })
     let out = ''
@@ -221,7 +221,21 @@ async function main () {
     }
   }
 
-  report({ cases, startup, selectedSuites, selectedMembranes })
+  // deterministic counters: exact, so they are the reliable signal on the
+  // allocation-heavy paths where the timings are mostly GC
+  const memory = {}
+  const ops = {}
+  if (!args.noCounters) {
+    for (const entry of selectedMembranes) {
+      if (unavailable.has(entry.name)) continue
+      const memoryResult = await runWorker(['--membrane', entry.name, '--memory'], ['--expose-gc'])
+      if (memoryResult.payload) memory[entry.name] = memoryResult.payload.bytesPerWrap
+      const opsResult = await runWorker(['--membrane', entry.name, '--ops'])
+      if (opsResult.payload) ops[entry.name] = opsResult.payload.counts
+    }
+  }
+
+  report({ cases, startup, memory, ops, selectedSuites, selectedMembranes })
 
   const result = {
     label: args.label ? String(args.label) : `${git.shortSha}${git.dirty ? '-dirty' : ''}`,
@@ -231,7 +245,9 @@ async function main () {
     env,
     config: { trials, startupTrials, quick, size: size || null },
     cases,
-    startup
+    startup,
+    memory,
+    ops
   }
 
   if (args.save) {
@@ -245,7 +261,7 @@ async function main () {
   }
 }
 
-function report ({ cases, startup, selectedSuites, selectedMembranes }) {
+function report ({ cases, startup, memory, ops, selectedSuites, selectedMembranes }) {
   const byMembrane = {}
   for (const record of cases) {
     byMembrane[record.membrane] = byMembrane[record.membrane] || {}
@@ -283,6 +299,37 @@ function report ({ cases, startup, selectedSuites, selectedMembranes }) {
     summary[entry.name] = line
   }
   console.table(summary)
+
+  if (Object.keys(ops).length) {
+    console.log('\n== proxies allocated per operation (exact) ==')
+    const proxyTable = {}
+    for (const [name, counts] of Object.entries(ops)) {
+      const line = {}
+      for (const [op, snapshot] of Object.entries(counts)) line[op] = snapshot.proxy
+      proxyTable[name] = line
+    }
+    console.table(proxyTable)
+
+    console.log('\n== WeakMap operations per membrane operation (exact) ==')
+    const wmTable = {}
+    for (const [name, counts] of Object.entries(ops)) {
+      const line = {}
+      for (const [op, snapshot] of Object.entries(counts)) {
+        line[op] = snapshot.weakMapGet + snapshot.weakMapSet + snapshot.weakMapHas
+      }
+      wmTable[name] = line
+    }
+    console.table(wmTable)
+  }
+
+  if (Object.keys(memory).length) {
+    console.log('\n== retained bytes per wrapped reference ==')
+    const memoryTable = {}
+    for (const [name, bytes] of Object.entries(memory)) {
+      memoryTable[name] = { bytes: Math.round(bytes) }
+    }
+    console.table(memoryTable)
+  }
 
   if (Object.keys(startup).length) {
     console.log('\n== startup (ms, median of fresh processes) ==')

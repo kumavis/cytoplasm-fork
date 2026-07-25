@@ -1,6 +1,8 @@
 # 🦠 cytoplasm 🔬
 
-**warning: largely an educational exercise. too slow to be practical, has not been audited, here be dragons, etc**
+**warning: largely an educational exercise. has not been audited, here be dragons, etc**
+
+(it used to say "too slow to be practical" here. property access through the membrane is now within a few percent of a bare `new Proxy(target, Reflect)`, which is the floor for anything built on proxies - see [performance](#performance). wrapping an object for the first time is still the expensive part.)
 
 a javascript [membrane](https://tvcutsem.github.io/membranes) implementation.
 This implementation is intended to provide *secure* isolation between any number of membrane spaces.
@@ -29,6 +31,12 @@ distortions can be set in two ways:
 - overridden for a specific reference via the `membraneSpace.handlerForRef` WeakMap.
 
 Using these two approaches allows you to have a different distortion for a subset of the MembraneSpace's objects.
+
+By default `createHandler` is called once per wrapped reference. If the handler it returns keeps no per-reference state — every trap is told which reference it is acting on, and `setHandlerForRef` takes the reference explicitly — set `createHandler.shareable = true` and the space will build one handler and reuse it for the whole space. The bundled `readOnly` and `alwaysThrow` distortions do this.
+
+### origin space is write-once
+
+The first MembraneSpace to present a raw reference to `bridge` becomes that reference's origin, permanently. A later `bridge` call naming a different in-graph — which is what happens when a `dangerouslyAlwaysUnwrap` space hands a raw reference back into the membrane — does not re-attribute it. Without this, an object that originated behind a read-only distortion could re-enter a third space with a plain `Reflect` handler and become writable.
 
 
 ### example
@@ -103,70 +111,93 @@ cytoplasm  | ✓ | ✓ | x
 
 ### performance
 
-`yarn run performance`
-
-I have noticed significant performance differences between node v20 and node v24.
-
-Performance comparison between `cytoplasm`, other memebranes, and non-membranes:
-
+```sh
+yarn performance          # full comparison, one process per case
+yarn performance:quick    # cytoplasm rows plus controls
+yarn performance:report   # timeseries across every recorded run
 ```
-== get ==
-┌─────────┬───────────────────────────────┬──────────┬────────────────────┬───────────┬─────────┐
-│ (index) │ Task Name                     │ ops/sec  │ Average Time (ns)  │ Margin    │ Samples │
-├─────────┼───────────────────────────────┼──────────┼────────────────────┼───────────┼─────────┤
-│ 0       │ 'non-membrane:bare'           │ '70,240' │ 14236.754730143311 │ '±1.08%'  │ 70241   │
-│ 1       │ 'non-membrane:emptyProxy'     │ '52,547' │ 19030.25576128991  │ '±0.98%'  │ 52549   │
-│ 2       │ 'non-membrane:reflectProxy'   │ '46,907' │ 21318.618764388408 │ '±0.91%'  │ 46908   │
-│ 3       │ 'non-membrane:recursiveProxy' │ '46,288' │ 21603.610015339804 │ '±0.89%'  │ 46289   │
-│ 4       │ 'test:simpleMembrane'         │ '9,234'  │ 108286.6388738518  │ '±16.19%' │ 9235    │
-│ 5       │ 'fast-membrane:symbol'        │ '42,923' │ 23297.265562389282 │ '±1.63%'  │ 42924   │
-│ 6       │ 'fast-membrane:weakmap'       │ '11,104' │ 90051.4219720839   │ '±17.68%' │ 11105   │
-│ 7       │ 'observable-membrane'         │ '8,949'  │ 111734.47307262794 │ '±29.63%' │ 8950    │
-│ 8       │ 'cytoplasm:transparent'       │ '3,238'  │ 308739.26767521736 │ '±9.08%'  │ 3239    │
-└─────────┴───────────────────────────────┴──────────┴────────────────────┴───────────┴─────────┘
 
-== deep-get ==
-┌─────────┬───────────────────────────────┬──────────┬────────────────────┬───────────┬─────────┐
-│ (index) │ Task Name                     │ ops/sec  │ Average Time (ns)  │ Margin    │ Samples │
-├─────────┼───────────────────────────────┼──────────┼────────────────────┼───────────┼─────────┤
-│ 0       │ 'non-membrane:bare'           │ '19,647' │ 50897.023564734365 │ '±1.79%'  │ 19648   │
-│ 1       │ 'non-membrane:emptyProxy'     │ '18,341' │ 54521.45867409297  │ '±1.72%'  │ 18342   │
-│ 2       │ 'non-membrane:reflectProxy'   │ '17,773' │ 56263.538989528686 │ '±1.66%'  │ 17774   │
-│ 3       │ 'non-membrane:recursiveProxy' │ '15,711' │ 63649.45665732523  │ '±1.51%'  │ 15712   │
-│ 4       │ 'test:simpleMembrane'         │ '1,780'  │ 561685.1529667906  │ '±38.84%' │ 1837    │
-│ 5       │ 'fast-membrane:symbol'        │ '15,352' │ 65134.08675829828  │ '±1.78%'  │ 15353   │
-│ 6       │ 'fast-membrane:weakmap'       │ '2,565'  │ 389717.32891658717 │ '±19.47%' │ 2566    │
-│ 7       │ 'observable-membrane'         │ '2,424'  │ 412420.0032894011  │ '±15.71%' │ 2432    │
-│ 8       │ 'cytoplasm:transparent'       │ '570'    │ 1751798.3782837114 │ '±65.23%' │ 571     │
-└─────────┴───────────────────────────────┴──────────┴────────────────────┴───────────┴─────────┘
+See [`perf/README.md`](./perf/README.md) for how the harness works and why it is
+shaped the way it is. Every recorded run is kept in `perf/results/`.
 
-== set ==
-┌─────────┬───────────────────────────────┬─────────┬────────────────────┬───────────┬─────────┐
-│ (index) │ Task Name                     │ ops/sec │ Average Time (ns)  │ Margin    │ Samples │
-├─────────┼───────────────────────────────┼─────────┼────────────────────┼───────────┼─────────┤
-│ 0       │ 'non-membrane:bare'           │ '8,134' │ 122933.7822987108  │ '±1.80%'  │ 8135    │
-│ 1       │ 'non-membrane:emptyProxy'     │ '8,135' │ 122916.59353495642 │ '±1.67%'  │ 8136    │
-│ 2       │ 'non-membrane:reflectProxy'   │ '8,037' │ 124412.73525754362 │ '±1.65%'  │ 8038    │
-│ 3       │ 'non-membrane:recursiveProxy' │ '8,194' │ 122036.85918242823 │ '±1.62%'  │ 8195    │
-│ 4       │ 'test:simpleMembrane'         │ '5,121' │ 195260.11772744943 │ '±5.00%'  │ 5122    │
-│ 5       │ 'fast-membrane:symbol'        │ '7,554' │ 132366.23273351032 │ '±1.94%'  │ 7558    │
-│ 6       │ 'fast-membrane:weakmap'       │ '5,228' │ 191255.6351118871  │ '±5.61%'  │ 5229    │
-│ 7       │ 'observable-membrane'         │ '4,771' │ 209563.90758593244 │ '±4.75%'  │ 4772    │
-│ 8       │ 'cytoplasm:transparent'       │ '2,113' │ 473096.4664143572  │ '±42.42%' │ 2114    │
-└─────────┴───────────────────────────────┴─────────┴────────────────────┴───────────┴─────────┘
+Numbers below are **nanoseconds per elementary operation** (lower is better),
+median of 3 trials, each case in its own process, node v22 on x64 linux.
+I have noticed significant performance differences between node versions.
 
-== Summary ==
-┌─────────────────────────────┬───────┬──────────┬──────┐
-│ (index)                     │ get   │ deep-get │ set  │
-├─────────────────────────────┼───────┼──────────┼──────┤
-│ non-membrane:bare           │ 70241 │ 19648    │ 8134 │
-│ non-membrane:emptyProxy     │ 52548 │ 18341    │ 8136 │
-│ non-membrane:reflectProxy   │ 46907 │ 17773    │ 8038 │
-│ non-membrane:recursiveProxy │ 46289 │ 15711    │ 8194 │
-│ test:simpleMembrane         │ 9235  │ 1780     │ 5121 │
-│ fast-membrane:symbol        │ 42923 │ 15353    │ 7555 │
-│ fast-membrane:weakmap       │ 11105 │ 2566     │ 5229 │
-│ observable-membrane         │ 8950  │ 2425     │ 4772 │
-│ cytoplasm:transparent       │ 3239  │ 571      │ 2114 │
-└─────────────────────────────┴───────┴──────────┴──────┘
-```
+| implementation | get | deep-get | set | has | own-keys | gOPD | call | method-call | construct | wrap-cold | wrap-warm | array-iter | proto-get |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| non-membrane:bare | 6.5 | 2.7 | 0.7 | 0.5 | 13.7 | 25.6 | 0.9 | 15.9 | 7.6 | 4.4 | 0.8 | 0.8 | 0.5 |
+| non-membrane:emptyProxy | 20.9 | - | 261.7 | 32.3 | 665.9 | 134.4 | 17.5 | 43.4 | 152.1 | 43.6 | 17.1 | 93.3 | 32.3 |
+| non-membrane:reflectProxy | 41.4 | - | 808.6 | 33.5 | 2366.5 | 289.7 | 35.2 | 86.9 | 272.7 | 35.5 | 13.2 | 217.2 | 70.3 |
+| non-membrane:recursiveProxy | 37.5 | 50.4 | 31.2 | 33.5 | 717.3 | 137.5 | - | - | - | 57.2 | 26.9 | 195.6 | - |
+| test:simpleMembrane | 90.1 | 108.2 | 83.5 | 33.3 | 711.9 | 136.7 | - | - | - | 1183.7 | 21.0 | 256.7 | - |
+| fast-membrane:symbol | 50.7 | 79.0 | 35.6 | 40.6 | 1534.6 | 324.7 | - | - | - | 68.4 | 21.6 | 210.8 | - |
+| fast-membrane:weakmap | 46.6 | 71.6 | 35.3 | 40.0 | 1484.5 | 322.0 | - | - | - | 1303.0 | 43.4 | 209.8 | - |
+| observable-membrane | 44.6 | 77.6 | 32.8 | 46.1 | 2186.3 | 328.2 | - | - | - | 1195.6 | 33.8 | 223.1 | - |
+| **cytoplasm:transparent** | **38.3** | **69.1** | 83.0 | 40.1 | 2244.2 | 346.3 | **60.6** | **177.5** | **1981.5** | 1613.3 | **16.3** | **197.3** | **78.9** |
+| **cytoplasm:readOnly** | **39.0** | **67.0** | n/a | 40.0 | 2086.3 | 313.0 | **59.7** | **179.5** | **2526.0** | 1785.8 | **15.6** | **202.5** | **78.9** |
+
+A dash means the implementation cannot do that operation, so measuring it would
+be measuring something else. `fast-membrane` and `observable-membrane` hand
+functions and classes back **unwrapped**, which is why they have no
+`call` / `method-call` / `construct` / `proto-get` numbers - cytoplasm is the
+only entry in the table that mediates them at all. The read-only row has no
+`set`, because rejecting the write is the point.
+
+Two rows deserve a caveat rather than a victory lap. `set` is 83ns against
+32-36ns for the object-only membranes, because they answer `true` without
+performing the write through `Reflect.set` - which is also why none of them can
+support a distortion that refuses a write. `own-keys` and `construct` are
+dominated by work cytoplasm does and they do not: a descriptor lookup per key
+with the proxy invariants enforced, and wrapping the freshly constructed
+instance.
+
+**Memory and startup**
+
+| implementation | bytes retained per wrapped ref | import (ms) | first Membrane (ms) |
+|---|---|---|---|
+| non-membrane:reflectProxy | 32 | 0.61 | 0.03 |
+| fast-membrane:symbol | 73 | 4.84 | 0.09 |
+| test:simpleMembrane | 101 | 0.62 | 0.02 |
+| observable-membrane | 201 | 3.25 | 0.07 |
+| cytoplasm | 306 | 7.9 | 0.87 |
+
+Cytoplasm's import cost is the vendored SES intrinsics machinery under `lib/`;
+about 2ms of it is Node's ESM-to-CommonJS interop. The intrinsics walk is now
+memoized, so the *second* and later `new Membrane()` in a process cost 0.01ms
+rather than 0.87ms.
+
+**What changed**
+
+Against the pre-refactor implementation, same harness, same machine:
+
+| suite | before | after | |
+|---|---|---|---|
+| get | 205.6 | 39.0 | 5.3x |
+| deep-get | 273.3 | 67.0 | 4.1x |
+| set (transparent) | 262.4 | 83.0 | 3.2x |
+| has | 92.2 | 40.0 | 2.3x |
+| own-keys | 25254.9 | 2086.3 | 12.1x |
+| getOwnPropertyDescriptor | 6092.9 | 313.0 | 19.5x |
+| call | 4263.7 | 59.7 | 71x |
+| method-call | 4781.7 | 179.5 | 27x |
+| construct | 7415.1 | 2526.0 | 2.9x |
+| wrap-cold | 2850.1 | 1785.8 | 1.6x |
+| wrap-warm | 75.3 | 15.6 | 4.8x |
+| array-iter | 441.5 | 202.5 | 2.2x |
+| proto-get | 2013.9 | 78.9 | 26x |
+| membrane-create | 49960.3 | 221.8 | 225x |
+| bytes per wrapped ref | 3010 | 306 | 9.8x |
+
+Exact counts, per operation on an already-wrapped object:
+
+| operation | proxies allocated | WeakMap operations |
+|---|---|---|
+| `obj.prop` | 0 -> 0 | 3 -> 0 |
+| `obj.prop = v` | 0 -> 0 | 3 -> 0 |
+| `Object.keys(obj)` | 6 -> 0 | 143 -> 4 |
+| `Object.getOwnPropertyDescriptor(obj, k)` | 1 -> 0 | 22 -> 0 |
+| `obj.method(a, b)` | 1 -> 0 | 26 -> 3 |
+
+The step-by-step record, including the experiment that was measured and
+reverted, is in `perf/results/` and renders with `yarn performance:report`.

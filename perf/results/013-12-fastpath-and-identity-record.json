@@ -1,0 +1,1493 @@
+{
+  "label": "12-fastpath-and-identity-record",
+  "notes": "get trap undistorted fast path; single refInfo identity record; loop instead of map in alwaysUnwrap",
+  "timestamp": "2026-07-25T14:31:54.852Z",
+  "git": {
+    "sha": "5763ded5873da30682e425e6cba183598417b64a",
+    "shortSha": "5763ded",
+    "branch": "claude/javascript-performance-refactor-s6jt4p",
+    "subject": "perf: undistorted-read fast path, and one identity record per reference",
+    "dirty": false
+  },
+  "env": {
+    "node": "v22.22.2",
+    "v8": "12.4.254.21-node.39",
+    "platform": "linux-x64",
+    "cpu": "Intel(R) Xeon(R) Processor @ 2.80GHz",
+    "cores": 4,
+    "totalMemGb": 17
+  },
+  "config": {
+    "trials": 3,
+    "startupTrials": 7,
+    "quick": true,
+    "size": null
+  },
+  "cases": [
+    {
+      "suite": "get",
+      "membrane": "non-membrane:bare",
+      "group": "baseline",
+      "opsPerRun": 300,
+      "nsPerOp": 6.736739766081871,
+      "runNs": 2021.0219298245613,
+      "hz": 494799.1831473135,
+      "rmad": 0.13591668049724517,
+      "rme": 0.02746518324199855,
+      "trialSpread": 0.030908780005072738,
+      "trials": [
+        6.656037195994277,
+        6.736739766081871,
+        6.864261603375527
+      ]
+    },
+    {
+      "suite": "get",
+      "membrane": "non-membrane:reflectProxy",
+      "group": "baseline",
+      "opsPerRun": 300,
+      "nsPerOp": 43.70620370370371,
+      "runNs": 13111.861111111111,
+      "hz": 76266.82371982958,
+      "rmad": 0.06276400620428554,
+      "rme": 0.03441560787619787,
+      "trialSpread": 0.015946656737671577,
+      "trials": [
+        43.022371794871795,
+        43.71933962264151,
+        43.70620370370371
+      ]
+    },
+    {
+      "suite": "get",
+      "membrane": "test:simpleMembrane",
+      "group": "reference",
+      "opsPerRun": 300,
+      "nsPerOp": 92.71933333333332,
+      "runNs": 27815.8,
+      "hz": 35950.79055788437,
+      "rmad": 0.04700835496372568,
+      "rme": 0.019180810808479973,
+      "trialSpread": 0.01690693778356195,
+      "trials": [
+        92.71933333333332,
+        92.2804,
+        93.848
+      ]
+    },
+    {
+      "suite": "get",
+      "membrane": "cytoplasm:transparent",
+      "group": "cytoplasm",
+      "opsPerRun": 300,
+      "nsPerOp": 38.30533333333334,
+      "runNs": 11491.6,
+      "hz": 87020.08423544154,
+      "rmad": 0.06562881446807539,
+      "rme": 0.014059553311514853,
+      "trialSpread": 0.03267410785075865,
+      "trials": [
+        37.70825925925926,
+        38.95985185185185,
+        38.30533333333334
+      ]
+    },
+    {
+      "suite": "get",
+      "membrane": "cytoplasm:readOnly",
+      "group": "cytoplasm",
+      "opsPerRun": 300,
+      "nsPerOp": 39.47325925925926,
+      "runNs": 11841.977777777778,
+      "hz": 84445.35353516399,
+      "rmad": 0.061803108263808415,
+      "rme": 0.012960427723097745,
+      "trialSpread": 0.026080179754303174,
+      "trials": [
+        40.37136363636363,
+        39.47325925925926,
+        39.34189393939394
+      ]
+    },
+    {
+      "suite": "deep-get",
+      "membrane": "non-membrane:bare",
+      "group": "baseline",
+      "opsPerRun": 400,
+      "nsPerOp": 2.987527777777778,
+      "runNs": 1195.0111111111112,
+      "hz": 836812.303000437,
+      "rmad": 0.11234437615642807,
+      "rme": 0.21557292880602763,
+      "trialSpread": 0.02377550929325122,
+      "trials": [
+        2.987527777777778,
+        2.959711002785515,
+        3.0307409972299166
+      ]
+    },
+    {
+      "suite": "deep-get",
+      "membrane": "test:simpleMembrane",
+      "group": "reference",
+      "opsPerRun": 400,
+      "nsPerOp": 112.85828125,
+      "runNs": 45143.3125,
+      "hz": 22151.675289667768,
+      "rmad": 0.05062488491512447,
+      "rme": 0.0538991972967427,
+      "trialSpread": 0.007523954960106217,
+      "trials": [
+        112.85828125,
+        112.040703125,
+        112.88984375
+      ]
+    },
+    {
+      "suite": "deep-get",
+      "membrane": "cytoplasm:transparent",
+      "group": "cytoplasm",
+      "opsPerRun": 400,
+      "nsPerOp": 68.88661458333334,
+      "runNs": 27554.645833333336,
+      "hz": 36291.520713007405,
+      "rmad": 0.03921080865070804,
+      "rme": 0.01803029527116693,
+      "trialSpread": 0.036480665520505176,
+      "trials": [
+        70.80607954545454,
+        68.29305000000001,
+        68.88661458333334
+      ]
+    },
+    {
+      "suite": "deep-get",
+      "membrane": "cytoplasm:readOnly",
+      "group": "cytoplasm",
+      "opsPerRun": 400,
+      "nsPerOp": 69.4998,
+      "runNs": 27799.92,
+      "hz": 35971.326536191475,
+      "rmad": 0.03919254037885761,
+      "rme": 0.01930519637637718,
+      "trialSpread": 0.0262311306411434,
+      "trials": [
+        70.90395833333334,
+        69.4998,
+        69.0809
+      ]
+    },
+    {
+      "suite": "set",
+      "membrane": "non-membrane:bare",
+      "group": "baseline",
+      "opsPerRun": 300,
+      "nsPerOp": 0.7241151866151866,
+      "runNs": 217.23455598455598,
+      "hz": 4603319.188642777,
+      "rmad": 0.11446180652896813,
+      "rme": 0.007616855949073016,
+      "trialSpread": 0.011533782185316782,
+      "trials": [
+        0.7241151866151866,
+        0.7304946439823568,
+        0.7221428571428571
+      ]
+    },
+    {
+      "suite": "set",
+      "membrane": "non-membrane:reflectProxy",
+      "group": "baseline",
+      "opsPerRun": 300,
+      "nsPerOp": 832.0395833333333,
+      "runNs": 249611.875,
+      "hz": 4006.2196560159646,
+      "rmad": 0.042408960980455976,
+      "rme": 0.02942162894718516,
+      "trialSpread": 0.0016500617208215756,
+      "trials": [
+        831.9808333333333,
+        833.35375,
+        832.0395833333333
+      ]
+    },
+    {
+      "suite": "set",
+      "membrane": "test:simpleMembrane",
+      "group": "reference",
+      "opsPerRun": 300,
+      "nsPerOp": 85.58506172839506,
+      "runNs": 25675.51851851852,
+      "hz": 38947.60681381169,
+      "rmad": 0.0353831795383699,
+      "rme": 0.02751094250039774,
+      "trialSpread": 0.032133118642319214,
+      "trials": [
+        85.78,
+        83.02988505747126,
+        85.58506172839506
+      ]
+    },
+    {
+      "suite": "set",
+      "membrane": "cytoplasm:transparent",
+      "group": "cytoplasm",
+      "opsPerRun": 300,
+      "nsPerOp": 85.38697916666666,
+      "runNs": 25616.09375,
+      "hz": 39037.95831478014,
+      "rmad": 0.029007642900276315,
+      "rme": 0.04029430031133937,
+      "trialSpread": 0.03002201984836193,
+      "trials": [
+        86.30421875,
+        83.74072916666667,
+        85.38697916666666
+      ]
+    },
+    {
+      "suite": "set-reflect",
+      "membrane": "non-membrane:bare",
+      "group": "baseline",
+      "opsPerRun": 300,
+      "nsPerOp": 50.80908934707904,
+      "runNs": 15242.726804123711,
+      "hz": 65605.0595704086,
+      "rmad": 0.09542894916432801,
+      "rme": 0.06575833293406279,
+      "trialSpread": 0.10191113239413711,
+      "trials": [
+        50.80908934707904,
+        55.74849794238682,
+        50.57048611111111
+      ]
+    },
+    {
+      "suite": "set-reflect",
+      "membrane": "non-membrane:reflectProxy",
+      "group": "baseline",
+      "opsPerRun": 300,
+      "nsPerOp": 1096.9133333333334,
+      "runNs": 329074,
+      "hz": 3038.830171937011,
+      "rmad": 0.09496173462958057,
+      "rme": 0.040427596838638516,
+      "trialSpread": 0.03529044125839989,
+      "trials": [
+        1063.3883333333333,
+        1096.9133333333334,
+        1102.098888888889
+      ]
+    },
+    {
+      "suite": "set-reflect",
+      "membrane": "test:simpleMembrane",
+      "group": "reference",
+      "opsPerRun": 300,
+      "nsPerOp": 220.79416666666665,
+      "runNs": 66238.25,
+      "hz": 15097.017206825361,
+      "rmad": 0.03132454175997363,
+      "rme": 0.04567847647874422,
+      "trialSpread": 0.03593682135114894,
+      "trials": [
+        223.27777777777777,
+        220.79416666666665,
+        215.34313725490196
+      ]
+    },
+    {
+      "suite": "set-reflect",
+      "membrane": "cytoplasm:transparent",
+      "group": "cytoplasm",
+      "opsPerRun": 300,
+      "nsPerOp": 189.66649122807019,
+      "runNs": 56899.94736842105,
+      "hz": 17574.70869920331,
+      "rmad": 0.032192731875512165,
+      "rme": 0.0113811942234383,
+      "trialSpread": 0.0748869899981407,
+      "trials": [
+        202.91438596491227,
+        188.71083333333334,
+        189.66649122807019
+      ]
+    },
+    {
+      "suite": "set-reflect",
+      "membrane": "cytoplasm:readOnly",
+      "group": "cytoplasm",
+      "opsPerRun": 300,
+      "nsPerOp": 102.51115384615386,
+      "runNs": 30753.346153846156,
+      "hz": 32516.786791180944,
+      "rmad": 0.0450490299077754,
+      "rme": 0.0224566425140407,
+      "trialSpread": 0.03043598340976868,
+      "trials": [
+        102.51115384615386,
+        100.65733333333334,
+        103.77736111111112
+      ]
+    },
+    {
+      "suite": "has",
+      "membrane": "non-membrane:bare",
+      "group": "baseline",
+      "opsPerRun": 200,
+      "nsPerOp": 0.45255917159763315,
+      "runNs": 90.51183431952663,
+      "hz": 11048279.01807603,
+      "rmad": 0.00418678258779233,
+      "rme": 0.009073159189821874,
+      "trialSpread": 0.0032548789810631466,
+      "trials": [
+        0.45233606557377043,
+        0.45255917159763315,
+        0.45380909090909094
+      ]
+    },
+    {
+      "suite": "has",
+      "membrane": "non-membrane:reflectProxy",
+      "group": "baseline",
+      "opsPerRun": 200,
+      "nsPerOp": 33.833775510204084,
+      "runNs": 6766.755102040816,
+      "hz": 147781.3198379834,
+      "rmad": 0.03122202831984343,
+      "rme": 0.038542784437525075,
+      "trialSpread": 0.049108948726713085,
+      "trials": [
+        34.46114898989899,
+        32.79960784313725,
+        33.833775510204084
+      ]
+    },
+    {
+      "suite": "has",
+      "membrane": "test:simpleMembrane",
+      "group": "reference",
+      "opsPerRun": 200,
+      "nsPerOp": 32.89371287128713,
+      "runNs": 6578.742574257426,
+      "hz": 152004.73171164852,
+      "rmad": 0.023126387528450778,
+      "rme": 0.022451088635334033,
+      "trialSpread": 0.018791716394707825,
+      "trials": [
+        32.89371287128713,
+        33.37694581280788,
+        32.7588164893617
+      ]
+    },
+    {
+      "suite": "has",
+      "membrane": "cytoplasm:transparent",
+      "group": "cytoplasm",
+      "opsPerRun": 200,
+      "nsPerOp": 39.71200892857143,
+      "runNs": 7942.401785714285,
+      "hz": 125906.498686413,
+      "rmad": 0.026231502558667765,
+      "rme": 0.016241646540273463,
+      "trialSpread": 0.16363301474270686,
+      "trials": [
+        46.138055555555546,
+        39.639859813084115,
+        39.71200892857143
+      ]
+    },
+    {
+      "suite": "has",
+      "membrane": "cytoplasm:readOnly",
+      "group": "cytoplasm",
+      "opsPerRun": 200,
+      "nsPerOp": 42.79955357142857,
+      "runNs": 8559.910714285714,
+      "hz": 116823.64844426366,
+      "rmad": 0.023385168584217002,
+      "rme": 0.01972332257539921,
+      "trialSpread": 0.060088556497793794,
+      "trials": [
+        42.90723214285714,
+        40.33546875,
+        42.79955357142857
+      ]
+    },
+    {
+      "suite": "own-keys",
+      "membrane": "non-membrane:bare",
+      "group": "baseline",
+      "opsPerRun": 100,
+      "nsPerOp": 13.564540942928039,
+      "runNs": 1356.4540942928038,
+      "hz": 737216.2494900769,
+      "rmad": 0.07846712609424472,
+      "rme": 0.015699817181717837,
+      "trialSpread": 0.0660371883997965,
+      "trials": [
+        13.498337730870713,
+        14.394101876675604,
+        13.564540942928039
+      ]
+    },
+    {
+      "suite": "own-keys",
+      "membrane": "non-membrane:reflectProxy",
+      "group": "baseline",
+      "opsPerRun": 100,
+      "nsPerOp": 2308.2114285714288,
+      "runNs": 230821.14285714287,
+      "hz": 4332.358758915375,
+      "rmad": 0.030894706404898387,
+      "rme": 0.01479686868474585,
+      "trialSpread": 0.05374730465394353,
+      "trials": [
+        2308.2114285714288,
+        2272.097,
+        2396.157142857143
+      ]
+    },
+    {
+      "suite": "own-keys",
+      "membrane": "test:simpleMembrane",
+      "group": "reference",
+      "opsPerRun": 100,
+      "nsPerOp": 651.6227272727273,
+      "runNs": 65162.27272727273,
+      "hz": 15346.303284806461,
+      "rmad": 0.08283341459733679,
+      "rme": 0.05480268776468542,
+      "trialSpread": 0.06040957190789421,
+      "trials": [
+        651.6227272727273,
+        649.74775,
+        689.112
+      ]
+    },
+    {
+      "suite": "own-keys",
+      "membrane": "cytoplasm:transparent",
+      "group": "cytoplasm",
+      "opsPerRun": 100,
+      "nsPerOp": 2288.462,
+      "runNs": 228846.2,
+      "hz": 4369.747017866148,
+      "rmad": 0.062140635981918005,
+      "rme": 0.03333682728523001,
+      "trialSpread": 0.06562966743603348,
+      "trials": [
+        2288.462,
+        2163.271,
+        2313.462
+      ]
+    },
+    {
+      "suite": "own-keys",
+      "membrane": "cytoplasm:readOnly",
+      "group": "cytoplasm",
+      "opsPerRun": 100,
+      "nsPerOp": 2076.87,
+      "runNs": 207687,
+      "hz": 4814.937863226875,
+      "rmad": 0.1948586253333863,
+      "rme": 0.048209241994402845,
+      "trialSpread": 0.1918548906126365,
+      "trials": [
+        2076.87,
+        2473.9816666666666,
+        2075.5240000000003
+      ]
+    },
+    {
+      "suite": "get-own-property-descriptor",
+      "membrane": "non-membrane:bare",
+      "group": "baseline",
+      "opsPerRun": 100,
+      "nsPerOp": 26.812442748091602,
+      "runNs": 2681.2442748091603,
+      "hz": 372961.16933291196,
+      "rmad": 0.09543375010907636,
+      "rme": 0.029849753730118195,
+      "trialSpread": 0.017142123658181064,
+      "trials": [
+        26.641391304347827,
+        26.812442748091602,
+        27.10101351351351
+      ]
+    },
+    {
+      "suite": "get-own-property-descriptor",
+      "membrane": "non-membrane:reflectProxy",
+      "group": "baseline",
+      "opsPerRun": 100,
+      "nsPerOp": 294.3234,
+      "runNs": 29432.34,
+      "hz": 33976.231587430695,
+      "rmad": 0.0382148752164023,
+      "rme": 0.022128792152561895,
+      "trialSpread": 0.07561861044895594,
+      "trials": [
+        313.9230612244898,
+        291.6667346938776,
+        294.3234
+      ]
+    },
+    {
+      "suite": "get-own-property-descriptor",
+      "membrane": "test:simpleMembrane",
+      "group": "reference",
+      "opsPerRun": 100,
+      "nsPerOp": 139.57436170212765,
+      "runNs": 13957.436170212764,
+      "hz": 71646.39607194823,
+      "rmad": 0.07718877667923507,
+      "rme": 0.027292757547494148,
+      "trialSpread": 0.03156918070847354,
+      "trials": [
+        139.57436170212765,
+        139.46891304347827,
+        143.87516129032258
+      ]
+    },
+    {
+      "suite": "get-own-property-descriptor",
+      "membrane": "cytoplasm:transparent",
+      "group": "cytoplasm",
+      "opsPerRun": 100,
+      "nsPerOp": 349.1272,
+      "runNs": 34912.72,
+      "hz": 28642.855669795994,
+      "rmad": 0.05273493443077466,
+      "rme": 0.016786259229826787,
+      "trialSpread": 0.027952464079686077,
+      "trials": [
+        346.4724137931035,
+        356.23137931034483,
+        349.1272
+      ]
+    },
+    {
+      "suite": "get-own-property-descriptor",
+      "membrane": "cytoplasm:readOnly",
+      "group": "cytoplasm",
+      "opsPerRun": 100,
+      "nsPerOp": 322.24133333333333,
+      "runNs": 32224.133333333335,
+      "hz": 31032.64220191078,
+      "rmad": 0.04067241529123106,
+      "rme": 0.03140250665897071,
+      "trialSpread": 0.010681150088268318,
+      "trials": [
+        322.10275862068966,
+        322.24133333333333,
+        325.54466666666667
+      ]
+    },
+    {
+      "suite": "call",
+      "membrane": "non-membrane:bare",
+      "group": "baseline",
+      "opsPerRun": 100,
+      "nsPerOp": 0.9289570552147239,
+      "runNs": 92.8957055214724,
+      "hz": 10764760.269449214,
+      "rmad": 0.0014969400783692518,
+      "rme": 0.006698361665956622,
+      "trialSpread": 0.00041796601678369214,
+      "trials": [
+        0.9291849529780565,
+        0.9287966804979253,
+        0.9289570552147239
+      ]
+    },
+    {
+      "suite": "call",
+      "membrane": "non-membrane:reflectProxy",
+      "group": "baseline",
+      "opsPerRun": 100,
+      "nsPerOp": 34.99745098039215,
+      "runNs": 3499.7450980392155,
+      "hz": 285735.0955531776,
+      "rmad": 0.048013300688565484,
+      "rme": 0.01676772368216641,
+      "trialSpread": 0.02605338881146073,
+      "trials": [
+        35.388571428571424,
+        34.476769230769236,
+        34.99745098039215
+      ]
+    },
+    {
+      "suite": "call",
+      "membrane": "cytoplasm:transparent",
+      "group": "cytoplasm",
+      "opsPerRun": 100,
+      "nsPerOp": 59.223600000000005,
+      "runNs": 5922.360000000001,
+      "hz": 168851.60645418378,
+      "rmad": 0.18254464120142533,
+      "rme": 0.014193366062661512,
+      "trialSpread": 0.06198542472933093,
+      "trials": [
+        56.535,
+        60.206,
+        59.223600000000005
+      ]
+    },
+    {
+      "suite": "call",
+      "membrane": "cytoplasm:readOnly",
+      "group": "cytoplasm",
+      "opsPerRun": 100,
+      "nsPerOp": 58.4636170212766,
+      "runNs": 5846.36170212766,
+      "hz": 171046.55013665528,
+      "rmad": 0.1398579265719511,
+      "rme": 0.017015207874058944,
+      "trialSpread": 0.13827034027093615,
+      "trials": [
+        58.4636170212766,
+        60.74304347826087,
+        52.65925925925926
+      ]
+    },
+    {
+      "suite": "method-call",
+      "membrane": "non-membrane:bare",
+      "group": "baseline",
+      "opsPerRun": 100,
+      "nsPerOp": 15.292939814814813,
+      "runNs": 1529.2939814814813,
+      "hz": 653896.5117951125,
+      "rmad": 0.11716588149198442,
+      "rme": 0.015382863026551652,
+      "trialSpread": 0.023327490591463534,
+      "trials": [
+        15.292939814814813,
+        15.190631868131868,
+        15.547377777777779
+      ]
+    },
+    {
+      "suite": "method-call",
+      "membrane": "non-membrane:reflectProxy",
+      "group": "baseline",
+      "opsPerRun": 100,
+      "nsPerOp": 87.3081111111111,
+      "runNs": 8730.81111111111,
+      "hz": 114536.89551562602,
+      "rmad": 0.04237627800796194,
+      "rme": 0.030521027557807823,
+      "trialSpread": 0.021389989728619736,
+      "trials": [
+        87.3081111111111,
+        87.12007299270073,
+        88.98759259259259
+      ]
+    },
+    {
+      "suite": "method-call",
+      "membrane": "cytoplasm:transparent",
+      "group": "cytoplasm",
+      "opsPerRun": 100,
+      "nsPerOp": 176.66714285714286,
+      "runNs": 17666.714285714286,
+      "hz": 56603.62101449861,
+      "rmad": 0.14115235938850507,
+      "rme": 0.014089418227130788,
+      "trialSpread": 0.022393335867019335,
+      "trials": [
+        175.6505,
+        176.66714285714286,
+        179.60666666666668
+      ]
+    },
+    {
+      "suite": "method-call",
+      "membrane": "cytoplasm:readOnly",
+      "group": "cytoplasm",
+      "opsPerRun": 100,
+      "nsPerOp": 179.0985714285714,
+      "runNs": 17909.85714285714,
+      "hz": 55835.174564685054,
+      "rmad": 0.11832537017391323,
+      "rme": 0.01443482793797478,
+      "trialSpread": 0.131850975919087,
+      "trials": [
+        199.96357142857144,
+        176.34924999999998,
+        179.0985714285714
+      ]
+    },
+    {
+      "suite": "construct",
+      "membrane": "non-membrane:bare",
+      "group": "baseline",
+      "opsPerRun": 100,
+      "nsPerOp": 7.083289962825279,
+      "runNs": 708.3289962825279,
+      "hz": 1411773.3500226985,
+      "rmad": 0.10857804880413394,
+      "rme": 0.01266593533278622,
+      "trialSpread": 0.046794491017163604,
+      "trials": [
+        7.0099645390070915,
+        7.083289962825279,
+        7.341423487544485
+      ]
+    },
+    {
+      "suite": "construct",
+      "membrane": "non-membrane:reflectProxy",
+      "group": "baseline",
+      "opsPerRun": 100,
+      "nsPerOp": 280.504,
+      "runNs": 28050.4,
+      "hz": 35650.11550637424,
+      "rmad": 0.0453547251311276,
+      "rme": 0.023702498030497447,
+      "trialSpread": 0.11477377389911295,
+      "trials": [
+        280.504,
+        312.02941176470586,
+        279.8349090909091
+      ]
+    },
+    {
+      "suite": "construct",
+      "membrane": "cytoplasm:transparent",
+      "group": "cytoplasm",
+      "opsPerRun": 100,
+      "nsPerOp": 1781.4375,
+      "runNs": 178143.75,
+      "hz": 5613.44419885626,
+      "rmad": 0.21290485414477503,
+      "rme": 0.5239476341887185,
+      "trialSpread": 0.06839277736846422,
+      "trials": [
+        1743.316875,
+        1865.1543333333334,
+        1781.4375
+      ]
+    },
+    {
+      "suite": "construct",
+      "membrane": "cytoplasm:readOnly",
+      "group": "cytoplasm",
+      "opsPerRun": 100,
+      "nsPerOp": 2276.4686666666666,
+      "runNs": 227646.86666666667,
+      "hz": 4392.768565816705,
+      "rmad": 0.21845869562474615,
+      "rme": 0.7195566712014124,
+      "trialSpread": 0.06540451044262942,
+      "trials": [
+        2255.8515384615384,
+        2404.7428571428572,
+        2276.4686666666666
+      ]
+    },
+    {
+      "suite": "wrap-cold",
+      "membrane": "non-membrane:bare",
+      "group": "baseline",
+      "opsPerRun": 100,
+      "nsPerOp": 4.62703125,
+      "runNs": 462.703125,
+      "hz": 2161212.980785466,
+      "rmad": 0.18846452571505756,
+      "rme": 0.09470290572239844,
+      "trialSpread": 0.22886907776989834,
+      "trials": [
+        5.031171875,
+        4.62703125,
+        3.9721875
+      ]
+    },
+    {
+      "suite": "wrap-cold",
+      "membrane": "non-membrane:reflectProxy",
+      "group": "baseline",
+      "opsPerRun": 100,
+      "nsPerOp": 40.3290625,
+      "runNs": 4032.90625,
+      "hz": 247960.1404074295,
+      "rmad": 0.13314297226720806,
+      "rme": 0.11896507689146468,
+      "trialSpread": 0.04717441671251346,
+      "trials": [
+        41.135625,
+        40.3290625,
+        39.233125
+      ]
+    },
+    {
+      "suite": "wrap-cold",
+      "membrane": "test:simpleMembrane",
+      "group": "reference",
+      "opsPerRun": 100,
+      "nsPerOp": 1176.2515625,
+      "runNs": 117625.15625,
+      "hz": 8501.582755602078,
+      "rmad": 0.17601545899250767,
+      "rme": 0.6110770311928366,
+      "trialSpread": 0.043143008577299975,
+      "trials": [
+        1176.2515625,
+        1197.12671875,
+        1146.3796875
+      ]
+    },
+    {
+      "suite": "wrap-cold",
+      "membrane": "cytoplasm:transparent",
+      "group": "cytoplasm",
+      "opsPerRun": 100,
+      "nsPerOp": 1505.6227500000002,
+      "runNs": 150562.27500000002,
+      "hz": 6641.769991852208,
+      "rmad": 0.2219589867382118,
+      "rme": 0.44232382877443016,
+      "trialSpread": 0.26414651346095824,
+      "trials": [
+        1445.045357142857,
+        1505.6227500000002,
+        1842.7503571428572
+      ]
+    },
+    {
+      "suite": "wrap-cold",
+      "membrane": "cytoplasm:readOnly",
+      "group": "cytoplasm",
+      "opsPerRun": 100,
+      "nsPerOp": 1636.6092,
+      "runNs": 163660.92,
+      "hz": 6110.1941746386365,
+      "rmad": 0.2909153249257795,
+      "rme": 0.45972592910900123,
+      "trialSpread": 0.07603835181762766,
+      "trials": [
+        1582.498148148148,
+        1636.6092,
+        1706.9432142857142
+      ]
+    },
+    {
+      "suite": "wrap-warm",
+      "membrane": "non-membrane:bare",
+      "group": "baseline",
+      "opsPerRun": 100,
+      "nsPerOp": 0.7433209417596035,
+      "runNs": 74.33209417596035,
+      "hz": 13453139.065782016,
+      "rmad": 0.012452486197347814,
+      "rme": 0.009549156470673949,
+      "trialSpread": 0.002164232636276511,
+      "trials": [
+        0.7433209417596035,
+        0.7428343023255815,
+        0.7444430217669654
+      ]
+    },
+    {
+      "suite": "wrap-warm",
+      "membrane": "non-membrane:reflectProxy",
+      "group": "baseline",
+      "opsPerRun": 100,
+      "nsPerOp": 12.989537572254335,
+      "runNs": 1298.9537572254335,
+      "hz": 769850.3464326559,
+      "rmad": 0.06277638001600017,
+      "rme": 0.011272770027996197,
+      "trialSpread": 0.022017472775726778,
+      "trials": [
+        12.721091445427728,
+        13.007088235294118,
+        12.989537572254335
+      ]
+    },
+    {
+      "suite": "wrap-warm",
+      "membrane": "test:simpleMembrane",
+      "group": "reference",
+      "opsPerRun": 100,
+      "nsPerOp": 21.332063492063494,
+      "runNs": 2133.2063492063494,
+      "hz": 468777.90344663366,
+      "rmad": 0.03667044225917733,
+      "rme": 0.006300586199012798,
+      "trialSpread": 0.051079436277930206,
+      "trials": [
+        20.62619469026549,
+        21.715824468085106,
+        21.332063492063494
+      ]
+    },
+    {
+      "suite": "wrap-warm",
+      "membrane": "cytoplasm:transparent",
+      "group": "cytoplasm",
+      "opsPerRun": 100,
+      "nsPerOp": 15.772393617021276,
+      "runNs": 1577.2393617021276,
+      "hz": 634019.1757076228,
+      "rmad": 0.042796643545868575,
+      "rme": 0.009782533136239214,
+      "trialSpread": 0.036125409148232916,
+      "trials": [
+        15.526834532374101,
+        15.772393617021276,
+        16.096618705035972
+      ]
+    },
+    {
+      "suite": "wrap-warm",
+      "membrane": "cytoplasm:readOnly",
+      "group": "cytoplasm",
+      "opsPerRun": 100,
+      "nsPerOp": 16.571131386861314,
+      "runNs": 1657.1131386861314,
+      "hz": 603459.0980268649,
+      "rmad": 0.045542555775148055,
+      "rme": 0.012282028768357718,
+      "trialSpread": 0.02637448428378047,
+      "trials": [
+        16.74667910447761,
+        16.571131386861314,
+        16.309624060150377
+      ]
+    },
+    {
+      "suite": "array-iter",
+      "membrane": "non-membrane:bare",
+      "group": "baseline",
+      "opsPerRun": 101,
+      "nsPerOp": 0.8026855104865326,
+      "runNs": 81.07123655913979,
+      "hz": 12334830.976341661,
+      "rmad": 0.030037608062126624,
+      "rme": 0.009093360636831025,
+      "trialSpread": 0.02986259460956783,
+      "trials": [
+        0.8026855104865326,
+        0.8262887430047353,
+        0.802318471006102
+      ]
+    },
+    {
+      "suite": "array-iter",
+      "membrane": "non-membrane:reflectProxy",
+      "group": "baseline",
+      "opsPerRun": 101,
+      "nsPerOp": 216.2483983692487,
+      "runNs": 21841.08823529412,
+      "hz": 45785.26441663513,
+      "rmad": 0.022430204441715954,
+      "rme": 0.044791115112205265,
+      "trialSpread": 0.01767256700214954,
+      "trials": [
+        215.82873644507308,
+        219.65040075436116,
+        216.2483983692487
+      ]
+    },
+    {
+      "suite": "array-iter",
+      "membrane": "test:simpleMembrane",
+      "group": "reference",
+      "opsPerRun": 101,
+      "nsPerOp": 255.85178824004848,
+      "runNs": 25841.030612244896,
+      "hz": 38698.14695107962,
+      "rmad": 0.025976464397617707,
+      "rme": 0.012833601472049845,
+      "trialSpread": 0.011329079959453717,
+      "trials": [
+        256.33764396847846,
+        255.85178824004848,
+        253.43907860173772
+      ]
+    },
+    {
+      "suite": "array-iter",
+      "membrane": "cytoplasm:transparent",
+      "group": "cytoplasm",
+      "opsPerRun": 101,
+      "nsPerOp": 198.28787595740707,
+      "runNs": 20027.075471698114,
+      "hz": 49932.40283201515,
+      "rmad": 0.02554560571302059,
+      "rme": 0.027825944801533536,
+      "trialSpread": 0.03049991372615927,
+      "trials": [
+        201.4489365603227,
+        198.28787595740707,
+        195.40117345067839
+      ]
+    },
+    {
+      "suite": "array-iter",
+      "membrane": "cytoplasm:readOnly",
+      "group": "cytoplasm",
+      "opsPerRun": 101,
+      "nsPerOp": 199.51824349101577,
+      "runNs": 20151.34259259259,
+      "hz": 49624.485088531466,
+      "rmad": 0.03287698375640206,
+      "rme": 0.030298171281360805,
+      "trialSpread": 0.026444662807330183,
+      "trials": [
+        196.6526668795912,
+        199.51824349101577,
+        201.92885955262193
+      ]
+    },
+    {
+      "suite": "proto-get",
+      "membrane": "non-membrane:bare",
+      "group": "baseline",
+      "opsPerRun": 200,
+      "nsPerOp": 0.45536101083032493,
+      "runNs": 91.07220216606498,
+      "hz": 10980298.886114083,
+      "rmad": 0.003535748057394191,
+      "rme": 0.009111254619604192,
+      "trialSpread": 0.0004185582097244214,
+      "trials": [
+        0.4552962962962963,
+        0.45536101083032493,
+        0.45548689138576776
+      ]
+    },
+    {
+      "suite": "proto-get",
+      "membrane": "non-membrane:reflectProxy",
+      "group": "baseline",
+      "opsPerRun": 200,
+      "nsPerOp": 71.12115384615385,
+      "runNs": 14224.23076923077,
+      "hz": 70302.5714517481,
+      "rmad": 0.024459210988832667,
+      "rme": 0.017827699302289036,
+      "trialSpread": 0.016362462064455265,
+      "trials": [
+        70.0568220338983,
+        71.12115384615385,
+        71.22053921568627
+      ]
+    },
+    {
+      "suite": "proto-get",
+      "membrane": "cytoplasm:transparent",
+      "group": "cytoplasm",
+      "opsPerRun": 200,
+      "nsPerOp": 79.99574074074074,
+      "runNs": 15999.148148148148,
+      "hz": 62503.32772346676,
+      "rmad": 0.07170903325985686,
+      "rme": 0.02468753049661273,
+      "trialSpread": 0.03176954857715636,
+      "trials": [
+        79.99574074074074,
+        82.22589285714287,
+        79.6844642857143
+      ]
+    },
+    {
+      "suite": "proto-get",
+      "membrane": "cytoplasm:readOnly",
+      "group": "cytoplasm",
+      "opsPerRun": 200,
+      "nsPerOp": 79.93685185185186,
+      "runNs": 15987.37037037037,
+      "hz": 62549.3734637758,
+      "rmad": 0.060770191285250574,
+      "rme": 0.016630757905796777,
+      "trialSpread": 0.02916769950354336,
+      "trials": [
+        81.52583333333334,
+        79.19425925925925,
+        79.93685185185186
+      ]
+    },
+    {
+      "suite": "membrane-create",
+      "membrane": "non-membrane:bare",
+      "group": "baseline",
+      "opsPerRun": 1,
+      "nsPerOp": 11.183407738095237,
+      "runNs": 11.183407738095237,
+      "hz": 89418183.02784339,
+      "rmad": 0.09996340773760021,
+      "rme": 0.1807812083832969,
+      "trialSpread": 0.04398954001082888,
+      "trials": [
+        11.183407738095237,
+        10.947808320950966,
+        11.43976128310332
+      ]
+    },
+    {
+      "suite": "membrane-create",
+      "membrane": "non-membrane:reflectProxy",
+      "group": "baseline",
+      "opsPerRun": 1,
+      "nsPerOp": 11.144930267621561,
+      "runNs": 11.144930267621561,
+      "hz": 89726896.08522871,
+      "rmad": 0.12042495605780147,
+      "rme": 0.030632619834655987,
+      "trialSpread": 0.11094270637365483,
+      "trials": [
+        11.144930267621561,
+        11.843957258658806,
+        10.607508532423209
+      ]
+    },
+    {
+      "suite": "membrane-create",
+      "membrane": "test:simpleMembrane",
+      "group": "reference",
+      "opsPerRun": 1,
+      "nsPerOp": 6.735082304526749,
+      "runNs": 6.735082304526749,
+      "hz": 148476285.03780645,
+      "rmad": 0.0530817994348125,
+      "rme": 0.026757315111664178,
+      "trialSpread": 0.10588857397029633,
+      "trials": [
+        7.365591397849462,
+        6.6524231370505476,
+        6.735082304526749
+      ]
+    },
+    {
+      "suite": "membrane-create",
+      "membrane": "cytoplasm:transparent",
+      "group": "cytoplasm",
+      "opsPerRun": 1,
+      "nsPerOp": 219.0859872611465,
+      "runNs": 219.0859872611465,
+      "hz": 4564417.891355225,
+      "rmad": 0.115433256290611,
+      "rme": 0.01930430101103564,
+      "trialSpread": 0.03550460012873902,
+      "trials": [
+        220.325,
+        212.54643962848297,
+        219.0859872611465
+      ]
+    },
+    {
+      "suite": "membrane-create",
+      "membrane": "cytoplasm:readOnly",
+      "group": "cytoplasm",
+      "opsPerRun": 1,
+      "nsPerOp": 227.23287671232876,
+      "runNs": 227.23287671232876,
+      "hz": 4400771.6421509525,
+      "rmad": 0.13491277630544304,
+      "rme": 0.019319792830167944,
+      "trialSpread": 0.05305875346016625,
+      "trials": [
+        218.3929712460064,
+        230.4496644295302,
+        227.23287671232876
+      ]
+    }
+  ],
+  "startup": {
+    "non-membrane:bare": {
+      "importMs": 0.554247,
+      "constructMs": 0.019676,
+      "firstBridgeMs": 0.006503,
+      "secondConstructMs": 0.001134,
+      "readyMs": 0.580174,
+      "samples": 7
+    },
+    "non-membrane:reflectProxy": {
+      "importMs": 0.578207,
+      "constructMs": 0.021149,
+      "firstBridgeMs": 0.010268,
+      "secondConstructMs": 0.001198,
+      "readyMs": 0.620669,
+      "samples": 7
+    },
+    "test:simpleMembrane": {
+      "importMs": 0.621546,
+      "constructMs": 0.017847,
+      "firstBridgeMs": 0.047954,
+      "secondConstructMs": 0.001893,
+      "readyMs": 0.701936,
+      "samples": 7
+    },
+    "cytoplasm:transparent": {
+      "importMs": 7.69144,
+      "constructMs": 0.84917,
+      "firstBridgeMs": 0.201397,
+      "secondConstructMs": 0.016337,
+      "readyMs": 8.746616,
+      "samples": 7
+    },
+    "cytoplasm:readOnly": {
+      "importMs": 7.795178,
+      "constructMs": 0.815363,
+      "firstBridgeMs": 0.229979,
+      "secondConstructMs": 0.013568,
+      "readyMs": 8.870447,
+      "samples": 7
+    }
+  },
+  "memory": {
+    "non-membrane:bare": 0.312,
+    "non-membrane:reflectProxy": 32.336,
+    "test:simpleMembrane": 97.952,
+    "cytoplasm:transparent": 305.612,
+    "cytoplasm:readOnly": 300.588
+  },
+  "ops": {
+    "non-membrane:bare": {
+      "get": {
+        "proxy": 0,
+        "weakMapGet": 0,
+        "weakMapSet": 0,
+        "weakMapHas": 0,
+        "setHas": 0
+      },
+      "has": {
+        "proxy": 0,
+        "weakMapGet": 0,
+        "weakMapSet": 0,
+        "weakMapHas": 0,
+        "setHas": 0
+      },
+      "own-keys": {
+        "proxy": 0,
+        "weakMapGet": 0,
+        "weakMapSet": 0,
+        "weakMapHas": 0,
+        "setHas": 0
+      },
+      "get-own-property-descriptor": {
+        "proxy": 0,
+        "weakMapGet": 0,
+        "weakMapSet": 0,
+        "weakMapHas": 0,
+        "setHas": 0
+      },
+      "set": {
+        "proxy": 0,
+        "weakMapGet": 0,
+        "weakMapSet": 0,
+        "weakMapHas": 0,
+        "setHas": 0
+      },
+      "method-call": {
+        "proxy": 0,
+        "weakMapGet": 0,
+        "weakMapSet": 0,
+        "weakMapHas": 0,
+        "setHas": 0
+      },
+      "wrap-cold": {
+        "proxy": 0,
+        "weakMapGet": 0,
+        "weakMapSet": 0,
+        "weakMapHas": 0,
+        "setHas": 0
+      }
+    },
+    "non-membrane:reflectProxy": {
+      "get": {
+        "proxy": 0,
+        "weakMapGet": 0,
+        "weakMapSet": 0,
+        "weakMapHas": 0,
+        "setHas": 0
+      },
+      "has": {
+        "proxy": 0,
+        "weakMapGet": 0,
+        "weakMapSet": 0,
+        "weakMapHas": 0,
+        "setHas": 0
+      },
+      "own-keys": {
+        "proxy": 0,
+        "weakMapGet": 0,
+        "weakMapSet": 0,
+        "weakMapHas": 0,
+        "setHas": 0
+      },
+      "get-own-property-descriptor": {
+        "proxy": 0,
+        "weakMapGet": 0,
+        "weakMapSet": 0,
+        "weakMapHas": 0,
+        "setHas": 0
+      },
+      "set": {
+        "proxy": 0,
+        "weakMapGet": 0,
+        "weakMapSet": 0,
+        "weakMapHas": 0,
+        "setHas": 0
+      },
+      "method-call": {
+        "proxy": 0,
+        "weakMapGet": 0,
+        "weakMapSet": 0,
+        "weakMapHas": 0,
+        "setHas": 0
+      },
+      "wrap-cold": {
+        "proxy": 1,
+        "weakMapGet": 0,
+        "weakMapSet": 0,
+        "weakMapHas": 0,
+        "setHas": 0
+      }
+    },
+    "test:simpleMembrane": {
+      "get": {
+        "proxy": 0,
+        "weakMapGet": 1,
+        "weakMapSet": 0,
+        "weakMapHas": 1,
+        "setHas": 0
+      },
+      "has": {
+        "proxy": 0,
+        "weakMapGet": 0,
+        "weakMapSet": 0,
+        "weakMapHas": 0,
+        "setHas": 0
+      },
+      "own-keys": {
+        "proxy": 0,
+        "weakMapGet": 0,
+        "weakMapSet": 0,
+        "weakMapHas": 0,
+        "setHas": 0
+      },
+      "get-own-property-descriptor": {
+        "proxy": 0,
+        "weakMapGet": 0,
+        "weakMapSet": 0,
+        "weakMapHas": 0,
+        "setHas": 0
+      },
+      "set": {
+        "proxy": 0,
+        "weakMapGet": 1,
+        "weakMapSet": 0,
+        "weakMapHas": 1,
+        "setHas": 0
+      },
+      "wrap-cold": {
+        "proxy": 1,
+        "weakMapGet": 1,
+        "weakMapSet": 2,
+        "weakMapHas": 0,
+        "setHas": 0
+      }
+    },
+    "cytoplasm:transparent": {
+      "get": {
+        "proxy": 0,
+        "weakMapGet": 0,
+        "weakMapSet": 0,
+        "weakMapHas": 0,
+        "setHas": 0
+      },
+      "has": {
+        "proxy": 0,
+        "weakMapGet": 0,
+        "weakMapSet": 0,
+        "weakMapHas": 0,
+        "setHas": 0
+      },
+      "own-keys": {
+        "proxy": 0,
+        "weakMapGet": 4,
+        "weakMapSet": 0,
+        "weakMapHas": 0,
+        "setHas": 0
+      },
+      "get-own-property-descriptor": {
+        "proxy": 0,
+        "weakMapGet": 0,
+        "weakMapSet": 0,
+        "weakMapHas": 0,
+        "setHas": 0
+      },
+      "set": {
+        "proxy": 0,
+        "weakMapGet": 0,
+        "weakMapSet": 0,
+        "weakMapHas": 0,
+        "setHas": 0
+      },
+      "method-call": {
+        "proxy": 0,
+        "weakMapGet": 3,
+        "weakMapSet": 0,
+        "weakMapHas": 0,
+        "setHas": 0
+      },
+      "wrap-cold": {
+        "proxy": 1,
+        "weakMapGet": 3,
+        "weakMapSet": 3,
+        "weakMapHas": 0,
+        "setHas": 1
+      }
+    },
+    "cytoplasm:readOnly": {
+      "get": {
+        "proxy": 0,
+        "weakMapGet": 0,
+        "weakMapSet": 0,
+        "weakMapHas": 0,
+        "setHas": 0
+      },
+      "has": {
+        "proxy": 0,
+        "weakMapGet": 0,
+        "weakMapSet": 0,
+        "weakMapHas": 0,
+        "setHas": 0
+      },
+      "own-keys": {
+        "proxy": 0,
+        "weakMapGet": 4,
+        "weakMapSet": 0,
+        "weakMapHas": 0,
+        "setHas": 0
+      },
+      "get-own-property-descriptor": {
+        "proxy": 0,
+        "weakMapGet": 0,
+        "weakMapSet": 0,
+        "weakMapHas": 0,
+        "setHas": 0
+      },
+      "method-call": {
+        "proxy": 0,
+        "weakMapGet": 3,
+        "weakMapSet": 0,
+        "weakMapHas": 0,
+        "setHas": 0
+      },
+      "wrap-cold": {
+        "proxy": 1,
+        "weakMapGet": 3,
+        "weakMapSet": 3,
+        "weakMapHas": 0,
+        "setHas": 1
+      }
+    }
+  }
+}

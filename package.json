@@ -26,6 +26,7 @@
     "performance:track": "node perf/run.js --quick --trials 3 --startupTrials 7 --membranes non-membrane:bare,non-membrane:reflectProxy,test:simpleMembrane,cytoplasm:transparent,cytoplasm:readOnly"
   },
   "devDependencies": {
+    "@lavamoat/lavatube": "^1.0.0",
     "depcheck": "^1.4.7",
     "esbuild": "^0.25.4",
     "fast-membrane": "pmdartus/fast-membrane#59c8a131249919f0f814d17767881a18c784ed87",

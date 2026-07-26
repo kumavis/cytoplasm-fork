@@ -38,9 +38,14 @@ export function makeGraph (label) {
     protoMethod () { return protoValue }
   })
 
+  // Deliberately does NOT track what it builds: a walker that constructs the
+  // functions it finds would otherwise grow `refs` on every construction, and
+  // anything iterating `refs` while walking would never terminate. Each
+  // instance is a fresh object anyway, so it could never be one of the original
+  // graph's references.
   const Ctor = track(function Ctor () {
     this.tag = `${label}:instance`
-    this.own = track({ tag: `${label}:instanceOwn` })
+    this.own = { tag: `${label}:instanceOwn` }
   })
   Ctor.prototype = track({ tag: `${label}:CtorProto`, ctorProtoValue: track({ tag: `${label}:ctorProtoValue` }) })
   Ctor.prototype.constructor = Ctor

@@ -12,6 +12,7 @@ import runReceiver from './receiver.js'
 import runContainers from './containers.js'
 import runPrimordials from './primordials.js'
 import runDistortions from './distortions.js'
+import runLavatube from './lavatube.js'
 
 const modules = [
   runIsolation,
@@ -19,7 +20,8 @@ const modules = [
   runReceiver,
   runContainers,
   runPrimordials,
-  runDistortions
+  runDistortions,
+  runLavatube
 ]
 
 export default function runReachabilityTests (test, exports) {

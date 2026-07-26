@@ -1,5 +1,15 @@
 name: CI
+
 on: [push, pull_request]
+
+# the GITHUB_TOKEN handed to these jobs only ever needs to read the checkout
+permissions:
+  contents: read
+
+# a new push supersedes whatever was already running for the same ref
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
@@ -8,12 +18,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: ['20', '22']
+        # the two current LTS lines; node 20 reached end-of-life in April 2026
+        node: ['22', '24']
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node }}
           cache: 'yarn'
@@ -35,9 +46,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: 'yarn'

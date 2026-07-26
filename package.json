@@ -8,9 +8,18 @@
   "main": "./dist/index.cjs",
   "module": "./src/index.js",
   "exports": {
-    "import": "./src/index.js",
-    "require": "./dist/index.cjs"
+    ".": {
+      "import": "./src/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./src/distortions/*.js": "./src/distortions/*.js",
+    "./package.json": "./package.json"
   },
+  "files": [
+    "dist",
+    "src",
+    "lib"
+  ],
   "scripts": {
     "test": "node test/index.js | tap-spec",
     "performance": "node perf/run.js",
@@ -28,12 +37,12 @@
   "devDependencies": {
     "@lavamoat/lavatube": "^1.0.0",
     "depcheck": "^1.4.7",
-    "esbuild": "^0.25.4",
+    "esbuild": "^0.28.1",
     "fast-membrane": "pmdartus/fast-membrane#59c8a131249919f0f814d17767881a18c784ed87",
     "observable-membrane": "^2.0.0",
     "standard": "^17.1.2",
     "tap-spec": "^5.0.0",
-    "tape": "^5.9.0"
+    "tape": "^5.10.2"
   },
   "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
 }

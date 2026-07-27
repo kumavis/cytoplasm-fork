@@ -1,6 +1,6 @@
 {
   "name": "cytoplasm",
-  "version": "3.3.1",
+  "version": "4.0.0",
   "author": "kumavis <aaron@kumavis.me>",
   "repository": "git@github.com:kumavis/cytoplasm.git",
   "license": "MIT",
@@ -12,7 +12,8 @@
   },
   "files": [
     "src",
-    "lib"
+    "lib",
+    "CHANGELOG.md"
   ],
   "engines": {
     "node": ">=22"

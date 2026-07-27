@@ -60,8 +60,7 @@ export function installCounters () {
   }
 }
 
-// Wraps Membrane#bridge so bridge() invocations can be counted too. Takes the
-// module namespace rather than a class so it also works against dist/.
+// Wraps Membrane#bridge so bridge() invocations can be counted too.
 export function countBridgeCalls (MembraneClass) {
   const state = { calls: 0 }
   const realBridge = MembraneClass.prototype.bridge

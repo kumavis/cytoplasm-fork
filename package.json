@@ -5,31 +5,25 @@
   "repository": "git@github.com:kumavis/cytoplasm.git",
   "license": "MIT",
   "type": "module",
-  "main": "./dist/index.cjs",
-  "module": "./src/index.js",
   "exports": {
-    ".": {
-      "import": "./src/index.js",
-      "require": "./dist/index.cjs"
-    },
+    ".": "./src/index.js",
     "./src/distortions/*.js": "./src/distortions/*.js",
     "./package.json": "./package.json"
   },
   "files": [
-    "dist",
     "src",
     "lib"
   ],
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "test": "node test/index.js | tap-spec",
     "performance": "node perf/run.js",
-    "build": "npm run build:esm && npm run build:cjs",
-    "build:esm": "esbuild src/index.js --bundle --format=esm --outfile=dist/index.js --external:../lib/*",
-    "build:cjs": "esbuild src/index.js --bundle --format=cjs --outfile=dist/index.cjs --external:../lib/* --target=node14 --banner:js='\"use strict\";'",
     "lint": "npm run lint:standard && npm run lint:deps",
     "lint:standard": "standard src/**/*.js",
     "lint:fix": "standard src/**/*.js --fix",
-    "lint:deps": "depcheck --ignore-dirs=dist --ignores='tap-spec'",
+    "lint:deps": "depcheck --ignores='tap-spec'",
     "performance:quick": "node perf/run.js --quick --membranes non-membrane:bare,non-membrane:reflectProxy,test:simpleMembrane,cytoplasm:transparent,cytoplasm:readOnly",
     "performance:report": "node perf/report.js",
     "performance:track": "node perf/run.js --quick --trials 3 --startupTrials 7 --membranes non-membrane:bare,non-membrane:reflectProxy,test:simpleMembrane,cytoplasm:transparent,cytoplasm:readOnly"
@@ -37,7 +31,6 @@
   "devDependencies": {
     "@lavamoat/lavatube": "^1.0.0",
     "depcheck": "^1.4.7",
-    "esbuild": "^0.28.1",
     "fast-membrane": "pmdartus/fast-membrane#59c8a131249919f0f814d17767881a18c784ed87",
     "observable-membrane": "^2.0.0",
     "standard": "^17.1.2",

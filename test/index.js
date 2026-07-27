@@ -3,20 +3,15 @@ import crypto from 'crypto'
 import test from 'tape'
 import { Buffer } from 'buffer'
 import * as srcExports from '../src/index.js'
-import * as distExports from '../dist/index.js'
 import createReadOnlyDistortion from '../src/distortions/readOnly.js'
 import createAlwaysThrowDistortion from '../src/distortions/alwaysThrow.js'
 import runReachabilityTests from './reachability/index.js'
 
-runTests(testWithLabelPrefix('src'), srcExports)
-runTests(testWithLabelPrefix('dist'), distExports)
-
-runReachabilityTests(testWithLabelPrefix('src'), srcExports)
-runReachabilityTests(testWithLabelPrefix('dist'), distExports)
-
-function testWithLabelPrefix (prefix) {
-  return (label, testFn) => test(`${prefix}/${label}`, testFn)
-}
+// The package ships src/ directly, so there is one implementation to exercise.
+// This used to run everything a second time against a bundled dist/, which no
+// longer exists.
+runTests(test, srcExports)
+runReachabilityTests(test, srcExports)
 
 function runTests (test, { Membrane }) {
   test('basic - bridge', (t) => {

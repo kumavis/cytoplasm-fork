@@ -32,12 +32,6 @@ jobs:
         run: yarn install --frozen-lockfile
       - name: Test
         run: yarn test
-      # the suite runs against dist/ as well as src/, so a stale dist means half
-      # the assertions are testing the previous implementation
-      - name: Check dist is up to date
-        run: |
-          yarn build
-          git diff --exit-code -- dist
       - name: Lint
         run: yarn lint
 

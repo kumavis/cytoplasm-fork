@@ -13,6 +13,7 @@ import runContainers from './containers.js'
 import runPrimordials from './primordials.js'
 import runDistortions from './distortions.js'
 import runLavatube from './lavatube.js'
+import runIntrinsics from './intrinsics.js'
 
 const modules = [
   runIsolation,
@@ -21,7 +22,8 @@ const modules = [
   runContainers,
   runPrimordials,
   runDistortions,
-  runLavatube
+  runLavatube,
+  runIntrinsics
 ]
 
 export default function runReachabilityTests (test, exports) {

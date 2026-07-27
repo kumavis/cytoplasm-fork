@@ -12,7 +12,6 @@
   },
   "files": [
     "src",
-    "lib",
     "CHANGELOG.md"
   ],
   "engines": {

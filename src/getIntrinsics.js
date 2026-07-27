@@ -1,11 +1,11 @@
-import { getIntrinsics as getSesIntrinsics } from '../lib/intrinsics.cjs'
+import { getIntrinsics as collectIntrinsics } from './intrinsics.js'
 
 export const getIntrinsics = () => {
   try {
-    return getSesIntrinsics()
+    return collectIntrinsics()
   } catch (err) {
     const subErrMsg = err.stack || err.message || err
-    throw new Error(`Cytoplasm failed to gather intrinsics. Please specify a "primordials" option to the Membrane constructor, apply core-js polyfills, or use node v12 or higher.\n${subErrMsg}`)
+    throw new Error(`Cytoplasm failed to gather intrinsics. Please specify a "primordials" option to the Membrane constructor.\n${subErrMsg}`)
   }
 }
 

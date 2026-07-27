@@ -50,6 +50,23 @@ plus a security fix and a narrower supported surface.
 - A `LICENSE` file. MIT has been declared in `package.json` from the start, but
   the text was never committed.
 
+### Removed
+
+- **The vendored SES fork under `lib/`.** The realm intrinsics used to come from
+  a Babel-compiled fork of SES's machinery, nine CommonJS files carried in the
+  repository. It is replaced by a self-contained ESM collector in
+  `src/intrinsics.js`, verified to produce exactly the same set — 107 names, 106
+  distinct values, no difference in either direction — before the fork was
+  deleted.
+
+  The npm `ses` package cannot stand in for it: its only public surface is a
+  shim that installs `lockdown`, `Compartment` and `assert` as globals, the
+  intrinsics collector it uses internally is not reachable through its `exports`
+  map, and deriving the list from a `Compartment`'s `globalThis` reaches 46 of
+  the 106 values — missing `Object.prototype`, `Array.prototype` and
+  `Function.prototype`, because those are prototypes rather than global
+  properties.
+
 ### Performance
 
 Nanoseconds per elementary operation, read-only distortion. Measured on a 4-core
@@ -73,6 +90,10 @@ Xeon at 2.80GHz, node v22, linux-x64 — **not portable across machines**. See
 | proto-get | 2013.9 | 78.9 | 26x |
 | membrane-create | 49960.3 | 221.8 | 225x |
 | bytes retained per wrapped ref | 3010 | 306 | 9.8x |
+| `import` cost (ms) | 7.9 | 2.7 | 2.9x |
+
+The import figure is the vendored SES fork going away: removing those files
+removes both Node's ESM-to-CommonJS interop for them and their own evaluation.
 
 Exact allocation counts per operation on an already-wrapped object, which are
 integers and so the regression tripwire that actually holds:

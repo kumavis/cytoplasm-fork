@@ -160,12 +160,14 @@ instance.
 | fast-membrane:symbol | 73 | 4.84 | 0.09 |
 | test:simpleMembrane | 101 | 0.62 | 0.02 |
 | observable-membrane | 201 | 3.25 | 0.07 |
-| cytoplasm | 306 | 7.9 | 0.87 |
+| cytoplasm | 306 | 2.7 | 0.69 |
 
-Cytoplasm's import cost is the vendored SES intrinsics machinery under `lib/`;
-about 2ms of it is Node's ESM-to-CommonJS interop. The intrinsics walk is now
-memoized, so the *second* and later `new Membrane()` in a process cost 0.01ms
-rather than 0.87ms.
+Cytoplasm's import cost used to be 7.9ms, nearly all of it a vendored,
+Babel-compiled fork of SES's intrinsics machinery that sat under `lib/` as nine
+CommonJS files. Replacing it with a self-contained ESM collector in
+`src/intrinsics.js` removed both Node's ESM-to-CommonJS interop for those files
+and their own evaluation. The intrinsics walk is also memoized, so the *second*
+and later `new Membrane()` in a process cost 0.01ms rather than 0.69ms.
 
 **What changed**
 

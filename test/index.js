@@ -3,16 +3,15 @@ import crypto from 'crypto'
 import test from 'tape'
 import { Buffer } from 'buffer'
 import * as srcExports from '../src/index.js'
-import * as distExports from '../dist/index.js'
 import createReadOnlyDistortion from '../src/distortions/readOnly.js'
 import createAlwaysThrowDistortion from '../src/distortions/alwaysThrow.js'
+import runReachabilityTests from './reachability/index.js'
 
-runTests(testWithLabelPrefix('src'), srcExports)
-runTests(testWithLabelPrefix('dist'), distExports)
-
-function testWithLabelPrefix (prefix) {
-  return (label, testFn) => test(`${prefix}/${label}`, testFn)
-}
+// The package ships src/ directly, so there is one implementation to exercise.
+// This used to run everything a second time against a bundled dist/, which no
+// longer exists.
+runTests(test, srcExports)
+runReachabilityTests(test, srcExports)
 
 function runTests (test, { Membrane }) {
   test('basic - bridge', (t) => {
@@ -1068,6 +1067,135 @@ function runTests (test, { Membrane }) {
     }
 
     t.ok(error, 'saw expected error')
+    t.end()
+  })
+
+  test('origin - space assignment is write-once', (t) => {
+    const membrane = new Membrane()
+
+    const graphA = membrane.makeMembraneSpace({ label: 'a' })
+    const graphB = membrane.makeMembraneSpace({ label: 'b' })
+    const graphC = membrane.makeMembraneSpace({ label: 'c' })
+
+    const objA = {}
+    membrane.bridge(objA, graphA, graphB)
+    t.equal(membrane.getOriginSpace(objA), graphA, 'origin recorded as a')
+
+    // a later bridge naming a different in-graph must not re-attribute the ref
+    membrane.bridge(objA, graphC, graphB)
+    t.equal(membrane.getOriginSpace(objA), graphA, 'origin not reassigned')
+
+    t.end()
+  })
+
+  test('attack - alwaysUnwrap round trip cannot escalate a readOnly origin', (t) => {
+    const membrane = new Membrane()
+
+    const graphA = membrane.makeMembraneSpace({ label: 'a', createHandler: createReadOnlyDistortion })
+    const graphU = membrane.makeMembraneSpace({ label: 'u', dangerouslyAlwaysUnwrap: true })
+    const graphC = membrane.makeMembraneSpace({ label: 'c' })
+
+    const secret = { value: 1 }
+
+    // an unwrap space receives the raw ref, by design
+    const rawInU = membrane.bridge(secret, graphA, graphU)
+    t.equal(rawInU, secret, 'alwaysUnwrap space receives the raw ref')
+
+    // re-entering the membrane from the unwrap space must not re-attribute the
+    // ref to that space, or it would be re-wrapped without a's distortion
+    const inC = membrane.bridge(rawInU, graphU, graphC)
+    t.equal(membrane.getOriginSpace(secret), graphA, 'origin still a')
+
+    let error
+    try {
+      inC.value = 99
+    } catch (_error) {
+      error = _error
+    }
+    t.ok(error, 'readOnly distortion still applies after the round trip')
+    t.equal(secret.value, 1, 'original was not mutated')
+
+    t.end()
+  })
+
+  test('alwaysUnwrap - bridging a wrapped array back leaves child origins alone', (t) => {
+    const membrane = new Membrane()
+
+    const graphA = membrane.makeMembraneSpace({ label: 'a' })
+    const graphB = membrane.makeMembraneSpace({ label: 'b' })
+    const graphU = membrane.makeMembraneSpace({ label: 'u', dangerouslyAlwaysUnwrap: true })
+
+    const child = { x: 1 }
+    const arrayA = [child]
+    const arrayInB = membrane.bridge(arrayA, graphA, graphB)
+
+    t.equal(Array.isArray(arrayInB), true, 'a bridged array still reports as an array')
+
+    // force the child to be bridged so it has a recorded origin
+    arrayInB[0] // eslint-disable-line no-unused-expressions
+    t.equal(membrane.getOriginSpace(child), graphA, 'child origin is a')
+
+    const unwrapped = membrane.bridge(arrayInB, graphB, graphU)
+    t.equal(unwrapped, arrayA, 'alwaysUnwrap hands back the identical raw array')
+    t.equal(membrane.getOriginSpace(child), graphA, 'child origin unchanged')
+
+    t.end()
+  })
+
+  test('errors - throwing undefined across the membrane still throws', (t) => {
+    const membrane = new Membrane()
+
+    const graphA = membrane.makeMembraneSpace({ label: 'a' })
+    const graphB = membrane.makeMembraneSpace({ label: 'b' })
+
+    const objA = {
+      boom () {
+        throw undefined // eslint-disable-line no-throw-literal
+      }
+    }
+    const wrappedA = membrane.bridge(objA, graphA, graphB)
+
+    let threw = false
+    let thrown = 'not undefined'
+    try {
+      wrappedA.boom()
+    } catch (err) {
+      threw = true
+      thrown = err
+    }
+
+    t.equal(threw, true, 'a thrown undefined is not swallowed')
+    t.equal(thrown, undefined, 'the thrown value is preserved')
+
+    t.end()
+  })
+
+  test('propertyDescriptors - accessor functions arrive bridged', (t) => {
+    const membrane = new Membrane()
+
+    const graphA = membrane.makeMembraneSpace({ label: 'a' })
+    const graphB = membrane.makeMembraneSpace({ label: 'b' })
+
+    const objA = {}
+    const rawGetter = function () { return 42 }
+    Object.defineProperty(objA, 'xyz', {
+      get: rawGetter,
+      enumerable: true,
+      configurable: true
+    })
+
+    const wrappedA = membrane.bridge(objA, graphA, graphB)
+    const propDesc = Object.getOwnPropertyDescriptor(wrappedA, 'xyz')
+
+    t.notEqual(propDesc.get, rawGetter, 'getter is not the raw function')
+    t.equal(membrane.isWrapped(propDesc.get), true, 'getter arrives wrapped')
+    t.equal(propDesc.get.call(wrappedA), 42, 'wrapped getter still works')
+    t.equal(propDesc.enumerable, true, 'enumerable preserved')
+    t.equal(propDesc.configurable, true, 'configurable preserved')
+    t.equal('value' in propDesc, false, 'accessor descriptor has no value field')
+    t.equal('writable' in propDesc, false, 'accessor descriptor has no writable field')
+    t.equal(wrappedA.xyz, 42, 'reading the accessor through the membrane works')
+
     t.end()
   })
 }

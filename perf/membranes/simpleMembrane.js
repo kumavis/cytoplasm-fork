@@ -21,15 +21,18 @@ const proxyToRaw = new WeakMap()
 
 export default () => ({
   wrap,
-  unwrap,
+  unwrap
 })
 
 function wrap (raw) {
   // skip if not object-like
   if (!isWrappable(raw)) return raw
   // check cache
-  if (rawToProxy.has(raw)) {
-    rawToProxy.get(raw)
+  // (this `return` was missing, so the identity cache never hit and this
+  // reference point allocated a fresh proxy on every wrap)
+  const cached = rawToProxy.get(raw)
+  if (cached !== undefined) {
+    return cached
   }
   // return wrapped version
   const proxy = new Proxy(raw, handler)

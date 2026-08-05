@@ -16,7 +16,7 @@ const handler = {
     // but in accurate wrt the receiver/target mismatch
     target[prop] = value
     return true
-  },
+  }
 }
 
 export default () => ({

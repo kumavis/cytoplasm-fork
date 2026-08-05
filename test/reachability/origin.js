@@ -253,6 +253,57 @@ export default function run (test, exports, helpers) {
       'no view reaches the raw target', { skip })
     t.end()
   })
+
+  // A throw raised while converting an out-graph value into the origin graph is
+  // an out-graph value. If the trap's catch bridges it as though the origin
+  // graph had raised it, bridge() records `origin: originGraph` for it - and
+  // since origin is written once, that forgery is permanent. The guest then
+  // holds a reference the membrane believes belongs to the host, so bridging it
+  // hands it over raw, and a set with it as receiver writes a raw host
+  // reference straight into guest-held state.
+  //
+  // bridge() runs guest code on that path: choosing a proxy target reads
+  // `value.prototype`, which an accessor on the prototype chain can answer with
+  // a throw. So the conversions have to happen before the try, not inside it.
+  for (const [label, createHandler] of [
+    ['the default distortion', undefined],
+    ['a readOnly distortion', createReadOnlyDistortion]
+  ]) {
+    test(`origin - a throw while converting an argument cannot forge origin (${label})`, (t) => {
+      const membrane = new Membrane()
+      const host = membrane.makeMembraneSpace({ label: 'host', createHandler })
+      const guest = membrane.makeMembraneSpace({ label: 'guest' })
+
+      const hostObj = { secret: 'host-owned', stolen: undefined }
+      const hostProxy = membrane.bridge(hostObj, host, guest)
+
+      // guest-owned, and what the guest wants the membrane to misattribute
+      const smuggled = {}
+      const throwingProto = Object.create(Function.prototype)
+      Object.defineProperty(throwingProto, 'prototype', {
+        get () { throw smuggled }
+      })
+      // an arrow function has no own "prototype", so the lookup reaches the
+      // accessor above while bridge() is picking a proxy target for it
+      const trigger = () => {}
+      Object.setPrototypeOf(trigger, throwingProto)
+
+      let raised
+      try { hostProxy.anything = trigger } catch (err) { raised = err }
+      t.ok(raised !== undefined, 'the throw still reaches the guest')
+
+      t.notEqual(membrane.getOriginSpace(smuggled), host,
+        'the guest value was not attributed to the host space')
+
+      // and the attribution cannot be cashed in for a raw reference
+      try {
+        Reflect.set(hostProxy, 'stolen', hostProxy, smuggled)
+      } catch (err) { /* a distortion may refuse the write */ }
+      t.notEqual(smuggled.stolen, hostObj, 'no raw host reference reached the guest')
+      t.equal(hostObj.stolen, undefined, 'and the host object was not written through')
+      t.end()
+    })
+  }
 }
 
 function reflectHandler () {

@@ -367,6 +367,16 @@ class MembraneProxyHandler {
   }
 
   // errors raised in the origin graph must not cross the boundary raw
+  //
+  // Only the distortion invocation itself may be guarded by this. Converting an
+  // out-graph value (toOrigin / receiverToOrigin / argsToOrigin /
+  // descriptorToOrigin) can also throw - bridge() runs `value.prototype` when it
+  // picks a proxy target, which is guest code - and such an error is an
+  // out-graph value. Bridging it as though it came from the origin graph would
+  // record `origin: originGraph` for it, and because origin is written once that
+  // forgery is permanent: the ref then unwraps raw into the origin space. So the
+  // conversions are performed before the try in every trap below, exactly as
+  // they were before the traps were rewritten.
   rethrow (err) {
     if (this.membrane.debugMode) {
       // in debugMode, we dont safely catch and wrap errors
@@ -387,8 +397,9 @@ class MembraneProxyHandler {
   }
 
   setPrototypeOf (fakeTarget, proto) {
+    const originProto = this.toOrigin(proto)
     try {
-      return this.distortion.setPrototypeOf(this.rawRef, this.toOrigin(proto))
+      return this.distortion.setPrototypeOf(this.rawRef, originProto)
     } catch (err) { this.rethrow(err) }
   }
 
@@ -436,8 +447,9 @@ class MembraneProxyHandler {
   }
 
   defineProperty (fakeTarget, key, propDesc) {
+    const originDesc = this.descriptorToOrigin(propDesc)
     try {
-      const didAllow = this.distortion.defineProperty(this.rawRef, key, this.descriptorToOrigin(propDesc))
+      const didAllow = this.distortion.defineProperty(this.rawRef, key, originDesc)
       // need to also define on the fakeTarget
       if (didAllow && !propDesc.configurable) {
         Reflect.defineProperty(fakeTarget, key, propDesc)
@@ -457,21 +469,26 @@ class MembraneProxyHandler {
   }
 
   get (fakeTarget, key, receiver) {
-    try {
-      // When the receiver is our own proxy and the distortion does not
-      // override get, Reflect.get(rawRef, key, rawRef) is by definition
-      // rawRef[key] - the same [[Get]] with the same receiver - and measures
-      // 5.1ns against 14.1ns.
-      if (receiver === this.proxy && this.distortion.get === reflectGet) {
+    // When the receiver is our own proxy and the distortion does not
+    // override get, Reflect.get(rawRef, key, rawRef) is by definition
+    // rawRef[key] - the same [[Get]] with the same receiver - and measures
+    // 5.1ns against 14.1ns. This form also needs no conversion at all.
+    if (receiver === this.proxy && this.distortion.get === reflectGet) {
+      try {
         return this.toOut(this.rawRef[key])
-      }
-      return this.toOut(this.distortion.get(this.rawRef, key, this.receiverToOrigin(receiver)))
+      } catch (err) { this.rethrow(err) }
+    }
+    const originReceiver = this.receiverToOrigin(receiver)
+    try {
+      return this.toOut(this.distortion.get(this.rawRef, key, originReceiver))
     } catch (err) { this.rethrow(err) }
   }
 
   set (fakeTarget, key, value, receiver) {
+    const originValue = this.toOrigin(value)
+    const originReceiver = this.receiverToOrigin(receiver)
     try {
-      return this.distortion.set(this.rawRef, key, this.toOrigin(value), this.receiverToOrigin(receiver))
+      return this.distortion.set(this.rawRef, key, originValue, originReceiver)
     } catch (err) { this.rethrow(err) }
   }
 
@@ -488,14 +505,18 @@ class MembraneProxyHandler {
   }
 
   apply (fakeTarget, thisArg, args) {
+    const originThis = this.toOrigin(thisArg)
+    const originArgs = this.argsToOrigin(args)
     try {
-      return this.toOut(this.distortion.apply(this.rawRef, this.toOrigin(thisArg), this.argsToOrigin(args)))
+      return this.toOut(this.distortion.apply(this.rawRef, originThis, originArgs))
     } catch (err) { this.rethrow(err) }
   }
 
   construct (fakeTarget, args, newTarget) {
+    const originArgs = this.argsToOrigin(args)
+    const originNewTarget = this.receiverToOrigin(newTarget)
     try {
-      return this.toOut(this.distortion.construct(this.rawRef, this.argsToOrigin(args), this.receiverToOrigin(newTarget)))
+      return this.toOut(this.distortion.construct(this.rawRef, originArgs, originNewTarget))
     } catch (err) { this.rethrow(err) }
   }
 

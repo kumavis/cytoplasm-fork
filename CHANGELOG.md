@@ -25,6 +25,15 @@ plus a security fix and a narrower supported surface.
   is a security fix. The trade-off is that a `bridge()` call naming the wrong
   in-graph now mis-attributes that reference permanently instead of correcting
   itself on the next call.
+
+  Because that attribution is permanent, a trap may only guard the distortion
+  call itself. Converting an out-graph value into the origin graph can throw —
+  picking a proxy target reads `value.prototype`, which guest code can answer
+  with a throw — and an error raised there is an *out-graph* value. Bridging it
+  as though the origin graph had raised it records the origin space for a value
+  the guest owns, and the guest can then have it handed back raw. So every trap
+  converts its arguments before entering the `try`, and only the distortion
+  invocation is caught. Covered by `test/reachability/origin.js`.
 - **Distortion traps are invoked as methods of the distortion object**, so `this`
   inside a trap is the distortion rather than `undefined`.
 - **Distortion traps are read per invocation** rather than captured when a

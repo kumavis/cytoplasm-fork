@@ -44,3 +44,6 @@ export default function createAlwaysThrowDistortion () {
 
   return handler
 }
+
+// keeps no per-ref state, so one handler can serve the whole space
+createAlwaysThrowDistortion.shareable = true

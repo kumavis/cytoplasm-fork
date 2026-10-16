@@ -1,0 +1,25 @@
+version: 2
+
+updates:
+  # the CI actions were three majors behind before this file existed
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: 'chore(ci)'
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: chore
+      prefix-development: chore
+    # everything here is a devDependency, and the interesting signal is whether
+    # the suite and the build still agree - one PR per bump makes that legible
+    open-pull-requests-limit: 5
+    ignore:
+      # pinned to an exact commit on purpose: it is a benchmark comparison row,
+      # and the numbers in perf/results are only comparable against one version
+      - dependency-name: fast-membrane

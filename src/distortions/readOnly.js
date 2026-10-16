@@ -34,3 +34,8 @@ export default function createDistortion ({ setHandlerForRef }) {
     ownKeys: Reflect.ownKeys
   }
 }
+
+// The handler above keeps no per-ref state - every trap is told which ref it is
+// acting on, and setHandlerForRef takes the ref explicitly - so one handler can
+// serve every ref in the space instead of one being built per wrapped ref.
+createDistortion.shareable = true

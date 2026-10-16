@@ -1,36 +1,41 @@
 {
   "name": "cytoplasm",
-  "version": "3.3.1",
+  "version": "4.0.0",
   "author": "kumavis <aaron@kumavis.me>",
   "repository": "git@github.com:kumavis/cytoplasm.git",
   "license": "MIT",
   "type": "module",
-  "main": "./dist/index.cjs",
-  "module": "./src/index.js",
   "exports": {
-    "import": "./src/index.js",
-    "require": "./dist/index.cjs"
+    ".": "./src/index.js",
+    "./src/distortions/*.js": "./src/distortions/*.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src",
+    "CHANGELOG.md"
+  ],
+  "engines": {
+    "node": ">=22"
   },
   "scripts": {
     "test": "node test/index.js | tap-spec",
-    "performance": "node perf/index.js",
-    "build": "npm run build:esm && npm run build:cjs",
-    "build:esm": "esbuild src/index.js --bundle --format=esm --outfile=dist/index.js --external:../lib/*",
-    "build:cjs": "esbuild src/index.js --bundle --format=cjs --outfile=dist/index.cjs --external:../lib/* --target=node14 --banner:js='\"use strict\";'",
+    "performance": "node perf/run.js",
     "lint": "npm run lint:standard && npm run lint:deps",
     "lint:standard": "standard src/**/*.js",
     "lint:fix": "standard src/**/*.js --fix",
-    "lint:deps": "depcheck --ignore-dirs=dist --ignores='tap-spec'"
+    "lint:deps": "depcheck --ignores='tap-spec'",
+    "performance:quick": "node perf/run.js --quick --membranes non-membrane:bare,non-membrane:reflectProxy,test:simpleMembrane,cytoplasm:transparent,cytoplasm:readOnly",
+    "performance:report": "node perf/report.js",
+    "performance:track": "node perf/run.js --quick --trials 3 --startupTrials 7 --membranes non-membrane:bare,non-membrane:reflectProxy,test:simpleMembrane,cytoplasm:transparent,cytoplasm:readOnly"
   },
   "devDependencies": {
+    "@lavamoat/lavatube": "^1.0.0",
     "depcheck": "^1.4.7",
-    "esbuild": "^0.25.4",
     "fast-membrane": "pmdartus/fast-membrane#59c8a131249919f0f814d17767881a18c784ed87",
     "observable-membrane": "^2.0.0",
     "standard": "^17.1.2",
     "tap-spec": "^5.0.0",
-    "tape": "^5.9.0",
-    "tinybench": "^2.5.1"
+    "tape": "^5.10.2"
   },
   "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
 }

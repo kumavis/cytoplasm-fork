@@ -254,53 +254,118 @@ export default function run (test, exports, helpers) {
     t.end()
   })
 
-  // A throw raised while converting an out-graph value into the origin graph is
-  // an out-graph value. If the trap's catch bridges it as though the origin
-  // graph had raised it, bridge() records `origin: originGraph` for it - and
-  // since origin is written once, that forgery is permanent. The guest then
-  // holds a reference the membrane believes belongs to the host, so bridging it
-  // hands it over raw, and a set with it as receiver writes a raw host
-  // reference straight into guest-held state.
+  // A throw raised while a trap is converting a value is bridged by the trap's
+  // catch as though the origin graph had raised it, so bridge() records
+  // `origin: originGraph` for it - and since origin is written once, that
+  // attribution is permanent. If the thrown value belongs to another space, that
+  // space's value now unwraps raw into the origin space: a guest holds a
+  // reference the membrane believes is the host's, and a set with it as receiver
+  // writes a raw host reference straight into guest-held state.
   //
-  // bridge() runs guest code on that path: choosing a proxy target reads
-  // `value.prototype`, which an accessor on the prototype chain can answer with
-  // a throw. So the conversions have to happen before the try, not inside it.
-  for (const [label, createHandler] of [
+  // bridge() used to run the value's own code on that path: choosing a proxy
+  // target read `value.prototype`, which an accessor on the prototype chain can
+  // answer with a throw. Two things close it, and both are pinned here. The
+  // argument conversions happen before each trap's try, and bridge() no longer
+  // reads through the value at all - which matters for the result direction,
+  // where the conversion has to stay inside the try.
+
+  // a function whose `prototype` lookup throws the given value: an arrow
+  // function has no own "prototype", so the lookup reaches the accessor
+  const functionThrowing = (payload) => {
+    const throwingProto = Object.create(Function.prototype)
+    Object.defineProperty(throwingProto, 'prototype', { get () { throw payload } })
+    const fn = () => {}
+    Object.setPrototypeOf(fn, throwingProto)
+    return fn
+  }
+
+  // every trap that converts something the guest supplies
+  const argumentAttacks = [
+    ['set', (hostProxy, trigger) => { hostProxy.anything = trigger }],
+    ['setPrototypeOf', (hostProxy, trigger) => Object.setPrototypeOf(hostProxy, trigger)],
+    ['defineProperty', (hostProxy, trigger) =>
+      Object.defineProperty(hostProxy, 'anything', { value: trigger, configurable: true })],
+    ['get (receiver)', (hostProxy, trigger) => Reflect.get(hostProxy, 'anything', trigger)],
+    ['apply', (hostProxy, trigger) => hostProxy(trigger)],
+    ['construct', (hostProxy, trigger) => Reflect.construct(hostProxy, [trigger])]
+  ]
+
+  for (const [distortionLabel, createHandler] of [
     ['the default distortion', undefined],
     ['a readOnly distortion', createReadOnlyDistortion]
   ]) {
-    test(`origin - a throw while converting an argument cannot forge origin (${label})`, (t) => {
-      const membrane = new Membrane()
-      const host = membrane.makeMembraneSpace({ label: 'host', createHandler })
-      const guest = membrane.makeMembraneSpace({ label: 'guest' })
+    for (const [trapLabel, attack] of argumentAttacks) {
+      test(`origin - a throw while converting an argument cannot forge origin (${trapLabel}, ${distortionLabel})`, (t) => {
+        const membrane = new Membrane()
+        const host = membrane.makeMembraneSpace({ label: 'host', createHandler })
+        const guest = membrane.makeMembraneSpace({ label: 'guest' })
 
-      const hostObj = { secret: 'host-owned', stolen: undefined }
-      const hostProxy = membrane.bridge(hostObj, host, guest)
+        // a function, so that every trap in the list has something to act on
+        function hostValue () {}
+        hostValue.secret = 'host-owned'
+        const hostProxy = membrane.bridge(hostValue, host, guest)
 
-      // guest-owned, and what the guest wants the membrane to misattribute
-      const smuggled = {}
-      const throwingProto = Object.create(Function.prototype)
-      Object.defineProperty(throwingProto, 'prototype', {
-        get () { throw smuggled }
+        // guest-owned, and what the guest wants the membrane to misattribute
+        const smuggled = {}
+        // the attack may throw (the trigger's prototype getter) or not (once
+        // bridge stops reading through the value); either way the security
+        // property is the same, so the throw itself is not asserted
+        try { attack(hostProxy, functionThrowing(smuggled)) } catch (err) { /* swallow */ }
+
+        t.notEqual(membrane.getOriginSpace(smuggled), host,
+          'the guest value was not attributed to the host space')
+
+        // and the attribution cannot be cashed in for a raw reference
+        try {
+          Reflect.set(hostProxy, 'stolen', hostProxy, smuggled)
+        } catch (err) { /* a distortion may refuse the write */ }
+        t.notEqual(smuggled.stolen, hostValue, 'no raw host reference reached the guest')
+        t.equal(hostValue.stolen, undefined, 'and the host value was not written through')
+        t.end()
       })
-      // an arrow function has no own "prototype", so the lookup reaches the
-      // accessor above while bridge() is picking a proxy target for it
-      const trigger = () => {}
-      Object.setPrototypeOf(trigger, throwingProto)
+    }
+  }
+
+  // The result direction. A space that holds a raw reference belonging to a
+  // third space - which dangerouslyAlwaysUnwrap and passthroughFilter permit -
+  // hands it out through its own traps, and the trap converts it for the
+  // reader. That conversion sits inside the try, so if wrapping ran the value's
+  // code and that code threw, the throw would be attributed to the handing-out
+  // space. Hence bridge() must not run the value's code at all.
+  const resultAttacks = [
+    ['get', (membrane, hander, reader, raw) => {
+      const view = membrane.bridge({ value: raw }, hander, reader)
+      return view.value
+    }],
+    ['getPrototypeOf', (membrane, hander, reader, raw) => {
+      const view = membrane.bridge(Object.create(raw), hander, reader)
+      return Object.getPrototypeOf(view)
+    }],
+    ['apply', (membrane, hander, reader, raw) => {
+      const view = membrane.bridge(() => raw, hander, reader)
+      return view()
+    }]
+  ]
+
+  for (const [trapLabel, attack] of resultAttacks) {
+    test(`origin - a throw while converting a result cannot forge origin (${trapLabel})`, (t) => {
+      const membrane = new Membrane()
+      const hander = membrane.makeMembraneSpace({ label: 'hander' })
+      const owner = membrane.makeMembraneSpace({ label: 'owner' })
+      const reader = membrane.makeMembraneSpace({ label: 'reader' })
+      const unwrapping = membrane.makeMembraneSpace({ label: 'unwrapping', dangerouslyAlwaysUnwrap: true })
+
+      const smuggled = {}
+      const evil = functionThrowing(smuggled)
+      // how a space comes to hold another space's raw reference
+      const raw = membrane.bridge(evil, owner, unwrapping)
+      t.equal(raw, evil, 'the unwrapping space received the raw reference')
 
       let raised
-      try { hostProxy.anything = trigger } catch (err) { raised = err }
-      t.ok(raised !== undefined, 'the throw still reaches the guest')
-
-      t.notEqual(membrane.getOriginSpace(smuggled), host,
-        'the guest value was not attributed to the host space')
-
-      // and the attribution cannot be cashed in for a raw reference
-      try {
-        Reflect.set(hostProxy, 'stolen', hostProxy, smuggled)
-      } catch (err) { /* a distortion may refuse the write */ }
-      t.notEqual(smuggled.stolen, hostObj, 'no raw host reference reached the guest')
-      t.equal(hostObj.stolen, undefined, 'and the host object was not written through')
+      try { attack(membrane, hander, reader, raw) } catch (err) { raised = err }
+      t.notEqual(raised, smuggled, 'the raw owner value did not reach the reader')
+      t.notEqual(membrane.getOriginSpace(smuggled), hander,
+        'the owner value was not attributed to the handing-out space')
       t.end()
     })
   }

@@ -28,12 +28,19 @@ plus a security fix and a narrower supported surface.
 
   Because that attribution is permanent, a trap may only guard the distortion
   call itself. Converting an out-graph value into the origin graph can throw —
-  picking a proxy target reads `value.prototype`, which guest code can answer
+  picking a proxy target read `value.prototype`, which guest code can answer
   with a throw — and an error raised there is an *out-graph* value. Bridging it
   as though the origin graph had raised it records the origin space for a value
   the guest owns, and the guest can then have it handed back raw. So every trap
   converts its arguments before entering the `try`, and only the distortion
-  invocation is caught. Covered by `test/reachability/origin.js`.
+  invocation is caught. The result conversion has to stay inside the `try`, so
+  `bridge()` additionally no longer runs the wrapped value's code at all: the
+  proxy-target choice consults only the own `prototype` descriptor and treats a
+  throw as absence. Without that, a space holding a third space's raw reference
+  (as `dangerouslyAlwaysUnwrap` and `passthroughFilter` permit) could have that
+  third space's value attributed to itself. Covered by
+  `test/reachability/origin.js` across every converting trap and both
+  directions.
 - **Distortion traps are invoked as methods of the distortion object**, so `this`
   inside a trap is the distortion rather than `undefined`.
 - **Distortion traps are read per invocation** rather than captured when a

@@ -6,7 +6,8 @@ const { isArray } = Array
 // captured so the get trap can recognise an undistorted read without reading
 // through Reflect on every call
 const reflectGet = Reflect.get
-
+// captured so bridge() can inspect a value without reading through Reflect
+const reflectGetOwnPropertyDescriptor = Reflect.getOwnPropertyDescriptor
 
 export class MembraneSpace {
   constructor ({ label, createHandler, dangerouslyAlwaysUnwrap, passthroughFilter }) {
@@ -283,9 +284,24 @@ function createFlexibleProxy (realTarget, membraneProxyHandler) {
 
 // use replacement proxyTarget for flexible distortions less restrained by "Proxy invariant"
 // e.g. hide otherwise non-configurable properties
+//
+// This runs inside bridge(), on a value that may belong to any space, so it
+// must not run that value's code. It used to read `value.prototype`, which
+// walks the prototype chain and so invokes any accessor found there - and a
+// throw from that accessor, raised in the middle of a trap, was bridged as if
+// the trap's origin space had thrown it. Only the own property is consulted
+// now, which runs nothing for an ordinary function. A value that is itself a
+// Proxy can still answer with a throw, so that is treated as "no prototype";
+// the choice only decides which shape of stand-in target the proxy gets.
 function getProxyTargetForValue (value) {
   if (typeof value === 'function') {
-    if (value.prototype) {
+    let hasPrototype
+    try {
+      hasPrototype = reflectGetOwnPropertyDescriptor(value, 'prototype') !== undefined
+    } catch (err) {
+      hasPrototype = false
+    }
+    if (hasPrototype) {
       return function () {}
     } else {
       return () => {}
@@ -368,15 +384,19 @@ class MembraneProxyHandler {
 
   // errors raised in the origin graph must not cross the boundary raw
   //
-  // Only the distortion invocation itself may be guarded by this. Converting an
-  // out-graph value (toOrigin / receiverToOrigin / argsToOrigin /
-  // descriptorToOrigin) can also throw - bridge() runs `value.prototype` when it
-  // picks a proxy target, which is guest code - and such an error is an
-  // out-graph value. Bridging it as though it came from the origin graph would
-  // record `origin: originGraph` for it, and because origin is written once that
-  // forgery is permanent: the ref then unwraps raw into the origin space. So the
-  // conversions are performed before the try in every trap below, exactly as
-  // they were before the traps were rewritten.
+  // An error that reaches this is recorded as the origin graph's, and because
+  // origin is written once that attribution is permanent - so if a value
+  // another space owns were ever to arrive here, that space's value would from
+  // then on unwrap raw into the origin space. Two things keep that from
+  // happening. Nothing inside a trap's try may run foreign code except the
+  // distortion call itself: converting the arguments (toOrigin /
+  // receiverToOrigin / argsToOrigin / descriptorToOrigin) is done before the
+  // try in every trap below, as it was before the traps were rewritten. And
+  // bridge() itself runs no code belonging to the value it is wrapping - see
+  // getProxyTargetForValue - so converting the result inside the try is safe
+  // too. What remains able to throw inside the try is the distortion and the
+  // host's own hooks (createHandler, passthroughFilter): host code throwing
+  // host values, so no guest value can be misattributed.
   rethrow (err) {
     if (this.membrane.debugMode) {
       // in debugMode, we dont safely catch and wrap errors
